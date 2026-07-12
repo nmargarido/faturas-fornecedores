@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestão de Faturas de Fornecedores</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#ffffff; --border:#e2e5ea; --text:#1f2430; --muted:#6b7280;
+    --accent:#2563eb; --accent-dark:#1d4ed8; --accent-light:#eaf1ff;
+    --green:#15803d; --green-bg:#e8f7ee; --amber:#b45309; --amber-bg:#fef3e0;
+    --red:#b91c1c; --red-bg:#fdeceb; --gray-bg:#eef0f3;
+    --radius:10px; --shadow:0 1px 3px rgba(20,20,30,.08), 0 1px 2px rgba(20,20,30,.04);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);}
+  header{background:var(--card);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:20px;position:sticky;top:0;z-index:50;flex-wrap:wrap;}
+  header h1{font-size:18px;margin:0;font-weight:700;white-space:nowrap;}
+  nav{display:flex;gap:4px;flex-wrap:wrap;}
+  nav button{background:none;border:none;padding:8px 14px;border-radius:8px;font-size:14px;cursor:pointer;color:var(--muted);font-weight:600;}
+  nav button.active{background:var(--accent-light);color:var(--accent-dark);}
+  nav button:hover{background:var(--gray-bg);}
+  .spacer{flex:1;}
+  select, input, textarea{font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text);}
+  select:focus, input:focus, textarea:focus{outline:2px solid var(--accent-light);border-color:var(--accent);}
+  main{padding:24px;max-width:1180px;margin:0 auto;}
+  .view{display:none;}
+  .view.active{display:block;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:18px;}
+  .card h2{margin:0 0 4px;font-size:15px;}
+  .card .sub{color:var(--muted);font-size:12.5px;margin-bottom:14px;}
+  .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;}
+  .toolbar input[type=text],.toolbar input[type=search]{min-width:220px;flex:1;}
+  .btn{background:var(--accent);color:#fff;border:none;padding:9px 16px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;}
+  .btn:hover{background:var(--accent-dark);}
+  .btn:disabled{opacity:.55;cursor:default;}
+  .btn.secondary{background:var(--gray-bg);color:var(--text);}
+  .btn.secondary:hover{background:#e2e5ea;}
+  .btn.danger{background:var(--red-bg);color:var(--red);}
+  .btn.danger:hover{background:#f9d9d6;}
+  .btn.small{padding:5px 10px;font-size:12.5px;border-radius:6px;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em;padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  td{padding:9px 10px;border-bottom:1px solid #edeff2;vertical-align:middle;}
+  tr.clickable{cursor:pointer;}
+  tr.clickable:hover td{background:var(--gray-bg);}
+  .num{text-align:right;font-variant-numeric:tabular-nums;}
+  .badge{display:inline-block;padding:3px 9px;border-radius:99px;font-size:11.5px;font-weight:700;white-space:nowrap;}
+  .badge.paga{background:var(--green-bg);color:var(--green);}
+  .badge.pendente{background:var(--amber-bg);color:var(--amber);}
+  .badge.confirmar{background:var(--gray-bg);color:var(--muted);}
+  .badge.disputa{background:var(--red-bg);color:var(--red);}
+  .badge.overdue{background:var(--red-bg);color:var(--red);}
+  .muted{color:var(--muted);}
+  .pill{display:inline-block;padding:2px 8px;border-radius:6px;background:var(--gray-bg);font-size:11.5px;font-weight:600;color:var(--text);}
+  .grid-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px;}
+  .stat{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);}
+  .stat .label{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;}
+  .stat .value{font-size:22px;font-weight:700;}
+  .stat .value.amber{color:var(--amber);}
+  .stat .value.green{color:var(--green);}
+  .stat .value.red{color:var(--red);}
+  .pagination{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px;font-size:13px;color:var(--muted);}
+  .pagination button{background:var(--gray-bg);border:none;padding:6px 10px;border-radius:6px;cursor:pointer;}
+  .pagination button:disabled{opacity:.4;cursor:default;}
+  .modal-overlay{position:fixed;inset:0;background:rgba(15,18,25,.45);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto;z-index:100;}
+  .modal-overlay.active{display:flex;}
+  .modal{background:#fff;border-radius:12px;padding:22px 24px;width:100%;max-width:520px;box-shadow:0 20px 50px rgba(0,0,0,.25);}
+  .modal h3{margin:0 0 16px;font-size:16px;}
+  .form-row{margin-bottom:12px;}
+  .form-row label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:5px;}
+  .form-row input, .form-row select, .form-row textarea{width:100%;}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+  .empty{text-align:center;padding:40px 20px;color:var(--muted);font-size:14px;}
+  .supplier-card{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer;background:#fff;}
+  .supplier-card:hover{border-color:var(--accent);background:var(--accent-light);}
+  .supplier-card .name{font-weight:600;font-size:14px;}
+  .supplier-card .meta{font-size:12px;color:var(--muted);margin-top:2px;}
+  .back-link{display:inline-flex;align-items:center;gap:6px;color:var(--accent);font-size:13.5px;font-weight:600;cursor:pointer;margin-bottom:14px;}
+  .detail-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 24px;font-size:13.5px;margin-bottom:6px;}
+  .detail-grid div span.k{color:var(--muted);display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px;}
+  .tag-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+  .filter-chip{padding:6px 12px;border-radius:99px;border:1px solid var(--border);background:#fff;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--muted);}
+  .filter-chip.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+  footer.hint{max-width:1180px;margin:0 auto;padding:0 24px 40px;color:var(--muted);font-size:12px;line-height:1.6;}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1f2430;color:#fff;padding:10px 18px;border-radius:8px;font-size:13.5px;box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:200;opacity:0;pointer-events:none;transition:opacity .2s ease;}
+  .toast.show{opacity:1;}
+  #authGate{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:500;flex-direction:column;gap:18px;padding:24px;text-align:center;}
+  #authGate .box{max-width:420px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:32px 28px;}
+  #authGate h2{margin:0 0 8px;font-size:19px;}
+  #authGate p{color:var(--muted);font-size:13.5px;margin:0 0 20px;line-height:1.6;}
+  .spinner{width:22px;height:22px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 14px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .progress-bar{width:100%;height:10px;background:var(--gray-bg);border-radius:99px;overflow:hidden;margin:12px 0;}
+  .progress-bar-fill{height:100%;background:var(--accent);transition:width .2s ease;}
+  @media (max-width:640px){
+    .detail-grid{grid-template-columns:1fr 1fr;}
+    .form-grid{grid-template-columns:1fr;}
+    header{padding:12px 14px;}
+    main{padding:14px;}
+  }
+</style>
+</head>
+<body>
+
+<div id="authGate">
+  <div class="box">
+    <h2>Faturas de Fornecedores</h2>
+    <p id="authGateMsg">Inicia sessão com a tua conta Microsoft para aceder aos dados (SharePoint).</p>
+    <div id="authGateSpinner" class="spinner" style="display:none;"></div>
+    <div id="authGateProgress" style="display:none;">
+      <div class="progress-bar"><div class="progress-bar-fill" id="authGateProgressFill" style="width:0%;"></div></div>
+      <div class="muted" id="authGateProgressText" style="font-size:12.5px;"></div>
+    </div>
+    <button class="btn" id="btnLogin">Entrar com a Microsoft</button>
+    <button class="btn" id="btnStartImport" style="display:none;">Importar dados iniciais (12 093 faturas)</button>
+  </div>
+</div>
+
+<header>
+  <h1>Faturas de Fornecedores</h1>
+  <nav id="mainNav">
+    <button data-view="dashboard" class="active">Resumo</button>
+    <button data-view="fornecedores">Fornecedores</button>
+    <button data-view="faturas">Faturas</button>
+    <button data-view="relatorios">Relatórios</button>
+    <button data-view="backup">Conta</button>
+  </nav>
+  <div class="spacer"></div>
+  <div id="headerUserPill" class="pill" style="display:none;"></div>
+  <select id="entidadeGlobalFilter">
+    <option value="">Todas as empresas</option>
+  </select>
+</header>
+
+<main>
+
+  <!-- DASHBOARD -->
+  <div class="view active" id="view-dashboard">
+    <div class="grid-stats" id="dashStats"></div>
+    <div class="card">
+      <h2>Faturas pendentes mais urgentes</h2>
+      <div class="sub">As próximas a vencer, com base na data prevista de pagamento.</div>
+      <table>
+        <thead><tr><th>Fornecedor</th><th>Empresa</th><th>Nº Doc</th><th>A pagar até</th><th class="num">Valor</th></tr></thead>
+        <tbody id="dashUrgentBody"></tbody>
+      </table>
+      <div class="empty" id="dashUrgentEmpty" style="display:none;">Sem faturas pendentes 🎉</div>
+    </div>
+  </div>
+
+  <!-- FORNECEDORES -->
+  <div class="view" id="view-fornecedores">
+    <div id="fornecedoresList">
+      <div class="card">
+        <div class="toolbar">
+          <input type="search" id="fornecedorSearch" placeholder="Pesquisar fornecedor por nome ou NIPC...">
+          <button class="btn" id="btnNovoFornecedor">+ Novo fornecedor</button>
+        </div>
+        <div id="fornecedoresGrid"></div>
+        <div class="pagination" id="fornecedoresPagination"></div>
+      </div>
+    </div>
+    <div id="fornecedorDetail" style="display:none;"></div>
+  </div>
+
+  <!-- FATURAS -->
+  <div class="view" id="view-faturas">
+    <div class="card">
+      <div class="toolbar">
+        <input type="search" id="faturaSearch" placeholder="Pesquisar por fornecedor ou nº doc...">
+        <select id="faturaStatusFilter">
+          <option value="">Todos os estados</option>
+          <option value="Paga">Paga</option>
+          <option value="Pendente">Pendente</option>
+          <option value="A confirmar">A confirmar</option>
+          <option value="Disputa">Disputa</option>
+        </select>
+        <select id="faturaAnoFilter"><option value="">Todos os anos</option></select>
+        <button class="btn" id="btnNovaFatura">+ Nova fatura</button>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Fornecedor</th><th>Empresa</th><th>Tipo</th><th>Nº Doc</th><th>Mês</th>
+          <th class="num">Valor</th><th>Estado</th><th>Data pgto / prevista</th><th></th>
+        </tr></thead>
+        <tbody id="faturasBody"></tbody>
+      </table>
+      <div class="empty" id="faturasEmpty" style="display:none;">Sem faturas para os filtros escolhidos.</div>
+      <div class="pagination" id="faturasPagination"></div>
+    </div>
+  </div>
+
+  <!-- RELATORIOS -->
+  <div class="view" id="view-relatorios">
+    <div class="card">
+      <h2>Faturas pagas por mês</h2>
+      <div class="sub">Total pago, agrupado pelo mês em que foi paga.</div>
+      <div class="sub" id="relPagasNote" style="display:none;color:var(--amber);"></div>
+      <table>
+        <thead><tr><th>Mês</th><th class="num">Nº Faturas</th><th class="num">Total pago</th></tr></thead>
+        <tbody id="relPagasBody"></tbody>
+        <tfoot><tr style="font-weight:700;border-top:2px solid var(--border);">
+          <td>Total</td><td class="num" id="relPagasCount"></td><td class="num" id="relPagasTotal"></td>
+        </tr></tfoot>
+      </table>
+    </div>
+    <div class="card">
+      <h2>Faturas pendentes de pagamento</h2>
+      <div class="sub">
+        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" id="relIncluirConfirmar"> incluir também as "a confirmar"
+        </label>
+      </div>
+      <table>
+        <thead><tr><th>Fornecedor</th><th>Empresa</th><th>Nº Doc</th><th>Estado</th><th>A pagar até</th><th class="num">Valor</th></tr></thead>
+        <tbody id="relPendentesBody"></tbody>
+        <tfoot><tr style="font-weight:700;border-top:2px solid var(--border);">
+          <td colspan="5">Total</td><td class="num" id="relPendentesTotal"></td>
+        </tr></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- CONTA / BACKUP -->
+  <div class="view" id="view-backup">
+    <div class="card">
+      <h2>Conta e dados</h2>
+      <div class="sub">Os dados desta aplicação vivem numa lista do SharePoint (site NM-SharePoint), não neste navegador. Qualquer alteração é gravada logo lá.</div>
+      <div id="accountStatus" style="margin-bottom:14px;font-size:13.5px;"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn secondary" id="btnRefreshData">Atualizar a partir do SharePoint</button>
+        <button class="btn danger" id="btnLogout">Terminar sessão</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Cópia de segurança</h2>
+      <div class="sub">Descarrega uma cópia dos dados atuais (só para arquivo/backup — não é a fonte principal).</div>
+      <button class="btn secondary" id="btnExport">Exportar cópia (.json)</button>
+    </div>
+  </div>
+
+</main>
+
+<footer class="hint">Dados guardados na lista SharePoint "NM-SharePoint". Sessão iniciada com a tua conta Microsoft.</footer>
+
+<!-- MODAL: Fornecedor -->
+<div class="modal-overlay" id="modalFornecedor">
+  <div class="modal">
+    <h3 id="modalFornecedorTitle">Novo fornecedor</h3>
+    <input type="hidden" id="ffId">
+    <div class="form-row"><label>Nome *</label><input type="text" id="ffNome"></div>
+    <div class="form-grid">
+      <div class="form-row"><label>NIPC</label><input type="text" id="ffNipc"></div>
+      <div class="form-row"><label>Localidade</label><input type="text" id="ffLocalidade"></div>
+      <div class="form-row"><label>Morada</label><input type="text" id="ffMorada"></div>
+      <div class="form-row"><label>Código postal</label><input type="text" id="ffCodigoPostal"></div>
+      <div class="form-row"><label>IBAN</label><input type="text" id="ffIban"></div>
+      <div class="form-row"><label>Banco</label><input type="text" id="ffBanco"></div>
+      <div class="form-row"><label>Nome de contacto</label><input type="text" id="ffContacto"></div>
+      <div class="form-row"><label>E-mail</label><input type="text" id="ffEmail"></div>
+      <div class="form-row"><label>Telefone fixo</label><input type="text" id="ffTelefone"></div>
+      <div class="form-row"><label>Telemóvel</label><input type="text" id="ffTelemovel"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn secondary" onclick="closeModal('modalFornecedor')">Cancelar</button>
+      <button class="btn" id="btnSaveFornecedor">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Fatura -->
+<div class="modal-overlay" id="modalFatura">
+  <div class="modal">
+    <h3 id="modalFaturaTitle">Nova fatura</h3>
+    <input type="hidden" id="finId">
+    <div class="form-row">
+      <label>Fornecedor *</label>
+      <input type="text" id="finFornecedorSearch" placeholder="Escrever para pesquisar...">
+      <input type="hidden" id="finFornecedorId">
+      <div id="finFornecedorResults" style="border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:160px;overflow:auto;display:none;background:#fff;"></div>
+      <div id="finFornecedorSelected" class="pill" style="display:none;margin-top:6px;"></div>
+    </div>
+    <div class="form-grid">
+      <div class="form-row"><label>Empresa *</label>
+        <select id="finEntidade"></select>
+      </div>
+      <div class="form-row"><label>Tipo</label>
+        <select id="finTipo"><option>Factura</option><option>Nota Crédito</option><option>Recibo</option></select>
+      </div>
+      <div class="form-row"><label>Nº do documento</label><input type="text" id="finNumeroDoc"></div>
+      <div class="form-row"><label>Mês da fatura</label><input type="month" id="finMesFactura"></div>
+      <div class="form-row"><label>Valor (EUR) *</label><input type="number" step="0.01" id="finValor"></div>
+      <div class="form-row"><label>Estado *</label>
+        <select id="finStatus"><option>Pendente</option><option>Paga</option><option>A confirmar</option><option>Disputa</option></select>
+      </div>
+      <div class="form-row" style="grid-column:1/-1;"><label id="finDataLabel">Data prevista de pagamento</label><input type="date" id="finDataPgto"></div>
+      <div class="form-row" style="grid-column:1/-1;"><label>Notas</label><textarea id="finNotas" rows="2"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn secondary" onclick="closeModal('modalFatura')">Cancelar</button>
+      <button class="btn" id="btnSaveFatura">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://alcdn.msauth.net/browser/3.7.1/js/msal-browser.min.js" integrity="sha384-XnV/DzGyPeGf8XGGCPB+2VDBFuJHZAlWnPXlXUQhtoxSGDvNi8b/tDkSHf4S0ZKA" crossorigin="anonymous"></script>
+<script>
+const SEED_DATA = {"suppliers": [], "invoices": [], "entidades": ["Ventask", "Crescerá", "Mind & Sparkle"], "tipos": ["Factura", "Nota Crédito", "Recibo"], "statuses": ["Paga", "Pendente", "A confirmar", "Disputa"]};
+</script>
+<script>
+/* ====================== CONFIG ====================== */
+const MSAL_CONFIG = {
+  auth: {
+    clientId: "42d6b713-5349-4541-88ed-78c2ca027c68",
+    authority: "https://login.microsoftonline.com/e314cb77-798f-4b48-bbd1-9203301fb030",
+    redirectUri: window.location.origin + window.location.pathname
+  },
+  cache: { cacheLocation: "localStorage", storeAuthStateInCookie: false }
+};
+const GRAPH_SCOPES = ["Sites.ReadWrite.All", "User.Read"];
+const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
+const SITE_HOSTNAME = "ventaskpt.sharepoint.com";
+const SITE_PATH = "/sites/NM-SharePoint";
+const FORNECEDORES_LIST_NAME = "Fornecedores";
+const FATURAS_LIST_NAME = "Faturas";
+
+let msalInstance = null;
+let currentAccount = null;
+let state = { suppliers: [], invoices: [], entidades: SEED_DATA.entidades, tipos: SEED_DATA.tipos, statuses: SEED_DATA.statuses };
+let siteId = null, fornecedoresListId = null, faturasListId = null;
+
+/* ====================== UTIL ====================== */
+const fmtCurrency = v => new Intl.NumberFormat('pt-PT', {style:'currency', currency:'EUR'}).format(v||0);
+const fmtDate = iso => {
+  if(!iso) return '—';
+  const [y,m,d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+};
+const fmtMonth = iso => {
+  if(!iso) return '—';
+  const [y,m] = iso.split('-');
+  const names = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+  return `${names[parseInt(m,10)-1]} ${y}`;
+};
+const todayISO = () => new Date().toISOString().slice(0,10);
+function uid(prefix){ return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function escapeHtml(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(()=>t.classList.remove('show'), 2400);
+}
+function statusBadge(status){
+  const map = {"Paga":"paga","Pendente":"pendente","A confirmar":"confirmar","Disputa":"disputa"};
+  const cls = map[status] || "confirmar";
+  return `<span class="badge ${cls}">${escapeHtml(status)}</span>`;
+}
+function supplierById(id){ return state.suppliers.find(s=>s.id===id); }
+function setAuthGateMsg(msg){ document.getElementById('authGateMsg').textContent = msg; }
+function setAuthGateSpinner(on){ document.getElementById('authGateSpinner').style.display = on? 'block':'none'; }
+function setAuthGateProgress(pct, text){
+  const wrap = document.getElementById('authGateProgress');
+  wrap.style.display = pct===null ? 'none' : 'block';
+  if(pct!==null){
+    document.getElementById('authGateProgressFill').style.width = pct+'%';
+    document.getElementById('authGateProgressText').textContent = text||'';
+  }
+}
+
+/* ====================== MSAL / AUTH ====================== */
+async function initAuth(){
+  msalInstance = new msal.PublicClientApplication(MSAL_CONFIG);
+  await msalInstance.initialize();
+  const resp = await msalInstance.handleRedirectPromise().catch(e=>{ console.error(e); return null; });
+  const accounts = msalInstance.getAllAccounts();
+  if(resp && resp.account){
+    currentAccount = resp.account;
+    msalInstance.setActiveAccount(resp.account);
+  } else if(accounts.length){
+    currentAccount = accounts[0];
+    msalInstance.setActiveAccount(accounts[0]);
+  }
+  if(currentAccount){
+    await startApp();
+  } else {
+    document.getElementById('btnLogin').style.display = 'inline-block';
+  }
+}
+
+document.getElementById('btnLogin').addEventListener('click', async ()=>{
+  try{
+    document.getElementById('btnLogin').style.display = 'none';
+    setAuthGateSpinner(true);
+    setAuthGateMsg('A abrir o login da Microsoft...');
+    const result = await msalInstance.loginPopup({ scopes: GRAPH_SCOPES });
+    currentAccount = result.account;
+    msalInstance.setActiveAccount(result.account);
+    await startApp();
+  }catch(e){
+    console.error(e);
+    setAuthGateSpinner(false);
+    setAuthGateMsg('Não foi possível iniciar sessão: ' + (e.message||e));
+    document.getElementById('btnLogin').style.display = 'inline-block';
+  }
+});
+
+async function getGraphToken(){
+  const account = msalInstance.getActiveAccount();
+  if(!account) throw new Error('Sem sessão iniciada');
+  try{
+    const result = await msalInstance.acquireTokenSilent({ scopes: GRAPH_SCOPES, account });
+    return result.accessToken;
+  }catch(e){
+    const result = await msalInstance.acquireTokenPopup({ scopes: GRAPH_SCOPES });
+    return result.accessToken;
+  }
+}
+
+async function logout(){
+  await msalInstance.logoutPopup();
+  location.reload();
+}
+
+/* ====================== GRAPH HELPERS ====================== */
+async function graphFetch(pathOrUrl, options={}){
+  const token = await getGraphToken();
+  const url = pathOrUrl.startsWith('http') ? pathOrUrl : GRAPH_BASE + pathOrUrl;
+  const res = await fetch(url, {
+    ...options,
+    headers: { ...(options.headers||{}), Authorization: `Bearer ${token}`, 'Content-Type':'application/json' }
+  });
+  if(res.status === 429){
+    const retryAfter = parseFloat(res.headers.get('Retry-After')||'2');
+    await new Promise(r=>setTimeout(r, retryAfter*1000));
+    return graphFetch(pathOrUrl, options);
+  }
+  if(!res.ok){
+    const t = await res.text().catch(()=> '');
+    throw new Error(`Graph ${res.status}: ${t.slice(0,300)}`);
+  }
+  if(res.status === 204) return null;
+  return res.json();
+}
+
+async function graphBatch(requests){
+  // requests: [{id, method, url, body}] — up to 20 per call
+  const token = await getGraphToken();
+  const results = [];
+  for(let i=0;i<requests.length;i+=20){
+    const chunk = requests.slice(i, i+20);
+    const body = { requests: chunk.map(r=>({ id:r.id, method:r.method, url:r.url, body:r.body, headers: r.body? {'Content-Type':'application/json'}:undefined })) };
+    let res = await fetch(`${GRAPH_BASE}/$batch`, {
+      method:'POST',
+      headers: { Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+      body: JSON.stringify(body)
+    });
+    if(res.status === 429){
+      const retryAfter = parseFloat(res.headers.get('Retry-After')||'3');
+      await new Promise(r=>setTimeout(r, retryAfter*1000));
+      i -= 20; continue;
+    }
+    const data = await res.json();
+    results.push(...(data.responses||[]));
+  }
+  return results;
+}
+
+/* ====================== SITE / LIST DISCOVERY ====================== */
+async function getSiteId(){
+  const cached = localStorage.getItem('sp_site_id');
+  if(cached){ return cached; }
+  const data = await graphFetch(`/sites/${SITE_HOSTNAME}:${SITE_PATH}`);
+  localStorage.setItem('sp_site_id', data.id);
+  return data.id;
+}
+
+async function getListId(sName){
+  const cacheKey = 'sp_list_id_' + sName;
+  const cached = localStorage.getItem(cacheKey);
+  if(cached) return cached;
+  const data = await graphFetch(`/sites/${siteId}/lists?$filter=displayName eq '${sName}'`);
+  if(data.value && data.value.length){
+    localStorage.setItem(cacheKey, data.value[0].id);
+    return data.value[0].id;
+  }
+  return null;
+}
+
+async function createFaturasList(){
+  const body = {
+    displayName: FATURAS_LIST_NAME,
+    list: { template: "genericList" },
+    columns: [
+      { name:"FornecedorNome", text:{} },
+      { name:"FornecedorNIPC", text:{} },
+      { name:"FornecedorLegacyId", text:{} },
+      { name:"Entidade", text:{} },
+      { name:"Tipo", text:{} },
+      { name:"NumeroDoc", text:{} },
+      { name:"MesFactura", dateTime:{ displayAs:"default", format:"dateOnly" } },
+      { name:"Valor", number:{ decimalPlaces:"two" } },
+      { name:"Status", text:{} },
+      { name:"DataPagamento", dateTime:{ displayAs:"default", format:"dateOnly" } },
+      { name:"Notas", text:{ allowMultipleLines:true } }
+    ]
+  };
+  const data = await graphFetch(`/sites/${siteId}/lists`, { method:"POST", body: JSON.stringify(body) });
+  localStorage.setItem('sp_list_id_' + FATURAS_LIST_NAME, data.id);
+  return data.id;
+}
+
+/* ====================== FIELD MAPPING ====================== */
+function mapSpToSupplier(item){
+  const f = item.fields || {};
+  return {
+    id: 'sp-' + item.id, spId: item.id,
+    nome: f.Nome || '', nipc: f.NIPC!=null? String(f.NIPC) : '',
+    morada: f.Morada || '', numero_porta: f.NumeroPorta || '',
+    codigo_postal: f.CodigoPostal!=null? String(f.CodigoPostal) : '',
+    localidade: f.Localidade || '', banco: f.Banco || '', iban: f.IBAN || '', swift: f.SWIFT || '',
+    nome_contacto: f.NomeContacto || '', telefone_fixo: f.TelefoneFixo || '', telemovel: f.Telemovel || '',
+    email: f.Email || '', legacyId: f.LegacyId || ''
+  };
+}
+function supplierToSpFields(s){
+  return {
+    Title: s.nome, Nome: s.nome, NIPC: s.nipc||'', Morada: s.morada||'', NumeroPorta: s.numero_porta||'',
+    CodigoPostal: s.codigo_postal||'', Localidade: s.localidade||'', Banco: s.banco||'', IBAN: s.iban||'',
+    SWIFT: s.swift||'', NomeContacto: s.nome_contacto||'', TelefoneFixo: s.telefone_fixo||'',
+    Telemovel: s.telemovel||'', Email: s.email||''
+  };
+}
+function mapSpToInvoice(item){
+  const f = item.fields || {};
+  return {
+    id: 'sp-' + item.id, spId: item.id,
+    fornecedor_id: '', fornecedor_nome: f.FornecedorNome || '',
+    fornecedor_nipc: f.FornecedorNIPC || '',
+    entidade: f.Entidade || '', tipo: f.Tipo || '', numero_doc: f.NumeroDoc || '',
+    mes_factura: f.MesFactura ? f.MesFactura.slice(0,10) : null,
+    valor: typeof f.Valor === 'number' ? f.Valor : parseFloat(f.Valor||0) || 0,
+    status: f.Status || 'A confirmar',
+    data_pgto: f.DataPagamento ? f.DataPagamento.slice(0,10) : null,
+    notas: f.Notas || ''
+  };
+}
+function invoiceToSpFields(i){
+  const out = {
+    Title: i.numero_doc || i.fornecedor_nome || 'Fatura',
+    FornecedorNome: i.fornecedor_nome||'', FornecedorNIPC: i.fornecedor_nipc||'',
+    FornecedorLegacyId: i.fornecedor_id||'', Entidade: i.entidade||'', Tipo: i.tipo||'',
+    NumeroDoc: i.numero_doc||'', Valor: i.valor||0, Status: i.status||'',
+    Notas: i.notas||''
+  };
+  if(i.mes_factura) out.MesFactura = new Date(i.mes_factura+'T00:00:00Z').toISOString();
+  if(i.data_pgto) out.DataPagamento = new Date(i.data_pgto+'T00:00:00Z').toISOString();
+  return out;
+}
+
+/* ====================== READ ALL ITEMS (paginated) ====================== */
+async function fetchAllListItems(listId, selectFields){
+  let items = [];
+  let url = `/sites/${siteId}/lists/${listId}/items?$expand=fields(select=${selectFields})&$top=200`;
+  while(url){
+    const data = await graphFetch(url);
+    items = items.concat(data.value||[]);
+    url = data['@odata.nextLink'] || null;
+  }
+  return items;
+}
+
+/* ====================== BULK IMPORT (one-time) ====================== */
+async function runBulkImport(){
+  document.getElementById('btnStartImport').style.display = 'none';
+  setAuthGateSpinner(false);
+  setAuthGateMsg('A preparar a lista "Faturas"...');
+  if(!faturasListId){
+    faturasListId = await createFaturasList();
+  }
+  const all = SEED_DATA.invoices;
+  const supplierById_ = {};
+  SEED_DATA.suppliers.forEach(s=> supplierById_[s.id]=s);
+  const total = all.length;
+  setAuthGateProgress(0, `0 / ${total}`);
+  let done = 0;
+  const CHUNK = 20;
+  for(let i=0; i<all.length; i+=CHUNK){
+    const chunk = all.slice(i, i+CHUNK);
+    const requests = chunk.map((inv, idx)=>{
+      const sup = supplierById_[inv.fornecedor_id] || {};
+      const fields = invoiceToSpFields({
+        fornecedor_nome: inv.fornecedor_nome, fornecedor_nipc: sup.nipc||'',
+        fornecedor_id: inv.fornecedor_id||'', entidade: inv.entidade, tipo: inv.tipo,
+        numero_doc: inv.numero_doc, mes_factura: inv.mes_factura, valor: inv.valor,
+        status: inv.status, data_pgto: inv.data_pgto, notas: inv.notas
+      });
+      return {
+        id: String(idx), method:"POST",
+        url: `/sites/${siteId}/lists/${faturasListId}/items`,
+        body: { fields }
+      };
+    });
+    await graphBatch(requests);
+    done += chunk.length;
+    const pct = Math.round(done/total*100);
+    setAuthGateProgress(pct, `${done} / ${total} faturas importadas`);
+  }
+  setAuthGateMsg('Importação concluída!');
+  showToast('Importação inicial concluída');
+}
+
+/* ====================== APP STARTUP ====================== */
+async function startApp(){
+  const pill = document.getElementById('headerUserPill');
+  pill.style.display = 'inline-block';
+  pill.textContent = currentAccount.username || currentAccount.name || 'Sessão iniciada';
+
+  setAuthGateSpinner(true);
+  setAuthGateMsg('A ligar ao SharePoint...');
+  try{
+    siteId = await getSiteId();
+    fornecedoresListId = await getListId(FORNECEDORES_LIST_NAME);
+    faturasListId = await getListId(FATURAS_LIST_NAME);
+
+    setAuthGateMsg('A carregar fornecedores...');
+    if(fornecedoresListId){
+      const spItems = await fetchAllListItems(fornecedoresListId, 'LegacyId,Nome,NIPC,Morada,NumeroPorta,CodigoPostal,Localidade,Banco,IBAN,SWIFT,NomeContacto,TelefoneFixo,Telemovel,Email');
+      state.suppliers = spItems.map(mapSpToSupplier);
+    }
+
+    if(!faturasListId){
+      setAuthGateSpinner(false);
+      setAuthGateMsg('Ainda não existe a lista "Faturas" no SharePoint. Vamos criá-la e carregar os dados iniciais (12 093 faturas) — só é preciso fazer isto uma vez.');
+      document.getElementById('btnStartImport').style.display = 'inline-block';
+      document.getElementById('btnStartImport').onclick = async ()=>{
+        await runBulkImport();
+        await finishStartup();
+      };
+      return;
+    }
+
+    setAuthGateMsg('A carregar faturas...');
+    const spInvoices = await fetchAllListItems(faturasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,Valor,Status,DataPagamento,Notas');
+    if(spInvoices.length === 0){
+      setAuthGateSpinner(false);
+      setAuthGateMsg('A lista "Faturas" existe mas está vazia. Importar os dados iniciais (12 093 faturas)?');
+      document.getElementById('btnStartImport').style.display = 'inline-block';
+      document.getElementById('btnStartImport').onclick = async ()=>{
+        await runBulkImport();
+        await finishStartup();
+      };
+      return;
+    }
+    mapInvoicesWithFornecedorIds(spInvoices);
+    await finishStartup();
+  }catch(e){
+    console.error(e);
+    setAuthGateSpinner(false);
+    setAuthGateMsg('Erro ao carregar dados do SharePoint: ' + e.message);
+  }
+}
+
+function mapInvoicesWithFornecedorIds(spItems){
+  const byLegacy = {};
+  const byName = {};
+  state.suppliers.forEach(s=>{ if(s.legacyId) byLegacy[s.legacyId]=s.id; byName[s.nome]=s.id; });
+  state.invoices = spItems.map(item=>{
+    const inv = mapSpToInvoice(item);
+    const f = item.fields||{};
+    inv.fornecedor_id = byLegacy[f.FornecedorLegacyId] || byName[f.FornecedorNome] || '';
+    return inv;
+  });
+}
+
+async function finishStartup(){
+  // reload invoices fresh (covers the just-imported case) with fornecedor_id resolved
+  if(!state.invoices.length){
+    const spInvoices = await fetchAllListItems(faturasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,Valor,Status,DataPagamento,Notas');
+    mapInvoicesWithFornecedorIds(spInvoices);
+  }
+  document.getElementById('authGate').style.display = 'none';
+  populateEntidadeFilters();
+  initAfterStateChange();
+}
+
+/* ====================== NAV ====================== */
+function switchView(name){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  document.querySelectorAll('#mainNav button').forEach(b=>b.classList.toggle('active', b.dataset.view===name));
+  if(name==='dashboard') renderDashboard();
+  if(name==='fornecedores') { showFornecedorList(); renderFornecedoresGrid(); }
+  if(name==='faturas') renderFaturasTab();
+  if(name==='relatorios') renderRelatorios();
+  if(name==='backup') renderAccountStatus();
+}
+
+/* ====================== MODALS ====================== */
+function openModal(id){ document.getElementById(id).classList.add('active'); }
+function closeModal(id){ document.getElementById(id).classList.remove('active'); }
+document.querySelectorAll('.modal-overlay').forEach(ov=>{
+  ov.addEventListener('click', e=>{ if(e.target===ov) closeModal(ov.id); });
+});
+
+/* ====================== DASHBOARD ====================== */
+function currentEntidadeFilter(){ return document.getElementById('entidadeGlobalFilter').value; }
+
+function renderDashboard(){
+  const ent = currentEntidadeFilter();
+  const invs = state.invoices.filter(i => !ent || i.entidade===ent);
+  const paga = invs.filter(i=>i.status==='Paga');
+  const pendente = invs.filter(i=>i.status==='Pendente');
+  const confirmar = invs.filter(i=>i.status==='A confirmar');
+  const thisMonth = todayISO().slice(0,7);
+  const pagoEsteMes = paga.filter(i => (i.data_pgto||'').slice(0,7)===thisMonth).reduce((a,i)=>a+i.valor,0);
+  const totalPendente = pendente.reduce((a,i)=>a+i.valor,0);
+  const overdue = pendente.filter(i => i.data_pgto && i.data_pgto < todayISO());
+  const totalOverdue = overdue.reduce((a,i)=>a+i.valor,0);
+  const pagaSemData = paga.filter(i=>!i.data_pgto).length;
+
+  const stats = [
+    {label:"Pago este mês", value: fmtCurrency(pagoEsteMes), cls:"green"},
+    {label:"Total pendente", value: fmtCurrency(totalPendente), cls:"amber"},
+    {label:"Vencidas (em atraso)", value: fmtCurrency(totalOverdue), cls: overdue.length? "red":"green"},
+    {label:"Faturas a confirmar", value: confirmar.length, cls:""},
+    {label:"Pagas sem data registada", value: pagaSemData, cls: pagaSemData? "amber":""},
+    {label:"Fornecedores", value: state.suppliers.length, cls:""},
+  ];
+  document.getElementById('dashStats').innerHTML = stats.map(s=>`
+    <div class="stat"><div class="label">${s.label}</div><div class="value ${s.cls}">${s.value}</div></div>
+  `).join('');
+
+  const urgent = pendente.slice().sort((a,b)=>(a.data_pgto||'9999').localeCompare(b.data_pgto||'9999')).slice(0,10);
+  const body = document.getElementById('dashUrgentBody');
+  document.getElementById('dashUrgentEmpty').style.display = urgent.length ? 'none':'block';
+  body.innerHTML = urgent.map(i=>{
+    const isOverdue = i.data_pgto && i.data_pgto < todayISO();
+    return `<tr>
+      <td>${escapeHtml(i.fornecedor_nome)}</td>
+      <td><span class="pill">${escapeHtml(i.entidade||'—')}</span></td>
+      <td>${escapeHtml(i.numero_doc||'—')}</td>
+      <td>${isOverdue?'<span class="badge overdue">'+fmtDate(i.data_pgto)+'</span>':fmtDate(i.data_pgto)}</td>
+      <td class="num">${fmtCurrency(i.valor)}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ====================== FORNECEDORES ====================== */
+let fornecedoresPage = 0;
+const FORNECEDORES_PAGE_SIZE = 24;
+
+function showFornecedorList(){
+  document.getElementById('fornecedoresList').style.display='block';
+  document.getElementById('fornecedorDetail').style.display='none';
+}
+
+function renderFornecedoresGrid(){
+  const q = (document.getElementById('fornecedorSearch').value||'').toLowerCase().trim();
+  let list = state.suppliers.filter(s => !q || s.nome.toLowerCase().includes(q) || (s.nipc||'').includes(q));
+  list = list.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt'));
+  const total = list.length;
+  const pages = Math.max(1, Math.ceil(total/FORNECEDORES_PAGE_SIZE));
+  fornecedoresPage = Math.min(fornecedoresPage, pages-1);
+  const pageItems = list.slice(fornecedoresPage*FORNECEDORES_PAGE_SIZE, (fornecedoresPage+1)*FORNECEDORES_PAGE_SIZE);
+
+  const grid = document.getElementById('fornecedoresGrid');
+  if(pageItems.length===0){
+    grid.innerHTML = `<div class="empty">Nenhum fornecedor encontrado.</div>`;
+  } else {
+    grid.innerHTML = pageItems.map(s=>{
+      const invCount = state.invoices.filter(i=>i.fornecedor_id===s.id).length;
+      const pendCount = state.invoices.filter(i=>i.fornecedor_id===s.id && i.status==='Pendente').length;
+      return `<div class="supplier-card" onclick="openFornecedorDetail('${s.id}')">
+        <div>
+          <div class="name">${escapeHtml(s.nome)}</div>
+          <div class="meta">${s.nipc?('NIPC '+escapeHtml(s.nipc)+' · '):''}${invCount} fatura${invCount===1?'':'s'}</div>
+        </div>
+        ${pendCount? `<span class="badge pendente">${pendCount} pendente${pendCount===1?'':'s'}</span>` : ''}
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('fornecedoresPagination').innerHTML = `
+    <span>${total} fornecedor${total===1?'':'es'}</span>
+    <button ${fornecedoresPage===0?'disabled':''} onclick="fornecedoresPage--;renderFornecedoresGrid()">‹</button>
+    <span>Página ${fornecedoresPage+1} / ${pages}</span>
+    <button ${fornecedoresPage>=pages-1?'disabled':''} onclick="fornecedoresPage++;renderFornecedoresGrid()">›</button>
+  `;
+}
+
+let fdState = { supplierId: null, tab: 'Paga', page: 0 };
+const FD_PAGE_SIZE = 50;
+
+function openFornecedorDetail(id){
+  const s = supplierById(id);
+  if(!s) return;
+  if(fdState.supplierId !== id) fdState = { supplierId: id, tab: 'Paga', page: 0 };
+  document.getElementById('fornecedoresList').style.display='none';
+  document.getElementById('fornecedorDetail').style.display='block';
+  renderFornecedorDetailShell();
+}
+
+function faturaRowHtmlWithNipc(i, s){
+  const isOverdue = i.status==='Pendente' && i.data_pgto && i.data_pgto < todayISO();
+  return `<tr>
+    <td>${escapeHtml(s.nipc||'—')}</td>
+    <td>${escapeHtml(i.fornecedor_nome)}</td>
+    <td><span class="pill">${escapeHtml(i.entidade||'—')}</span></td>
+    <td>${statusBadge(i.status)}</td>
+    <td>${isOverdue? '<span class="badge overdue">'+fmtDate(i.data_pgto)+'</span>' : fmtDate(i.data_pgto)}</td>
+    <td>${escapeHtml(i.tipo||'—')}</td>
+    <td>${fmtMonth(i.mes_factura)}</td>
+    <td>${escapeHtml(i.numero_doc||'—')}</td>
+    <td class="num">${fmtCurrency(i.valor)}</td>
+    <td style="white-space:nowrap;">
+      ${i.status!=='Paga' ? `<button class="btn small secondary" onclick="quickMarkPaid('${i.id}')">Marcar paga</button>` : ''}
+      <button class="btn small secondary" onclick="editFatura('${i.id}')">Editar</button>
+    </td>
+  </tr>`;
+}
+
+function renderFornecedorDetailShell(){
+  const s = supplierById(fdState.supplierId);
+  if(!s) return;
+  const detail = document.getElementById('fornecedorDetail');
+  const invs = state.invoices.filter(i=>i.fornecedor_id===s.id);
+  const pagas = invs.filter(i=>i.status==='Paga');
+  const pendentes = invs.filter(i=>i.status==='Pendente');
+  const outras = invs.filter(i=>i.status!=='Paga' && i.status!=='Pendente');
+  const totalPago = pagas.reduce((a,i)=>a+i.valor,0);
+  const totalPendente = pendentes.reduce((a,i)=>a+i.valor,0);
+
+  detail.innerHTML = `
+    <div class="back-link" onclick="showFornecedorList()">← Voltar aos fornecedores</div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+        <div>
+          <h2 style="font-size:18px;">${escapeHtml(s.nome)}</h2>
+          <div class="sub">${s.nipc? 'NIPC '+escapeHtml(s.nipc):'Sem NIPC registado'}</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn secondary small" onclick="editFornecedor('${s.id}')">Editar</button>
+          <button class="btn small" onclick="openFaturaModal(null, '${s.id}')">+ Nova fatura</button>
+        </div>
+      </div>
+      <div class="detail-grid" style="margin-top:14px;">
+        <div><span class="k">Morada</span>${escapeHtml([s.morada,s.numero_porta].filter(Boolean).join(', ')||'—')}</div>
+        <div><span class="k">Código postal</span>${escapeHtml(s.codigo_postal||'—')}</div>
+        <div><span class="k">Banco</span>${escapeHtml(s.banco||'—')}</div>
+        <div><span class="k">IBAN</span>${escapeHtml(s.iban||'—')}</div>
+        <div><span class="k">SWIFT</span>${escapeHtml(s.swift||'—')}</div>
+        <div><span class="k">Localidade</span>${escapeHtml(s.localidade||'—')}</div>
+        <div><span class="k">Nome de contacto</span>${escapeHtml(s.nome_contacto||'—')}</div>
+        <div><span class="k">Telemóvel</span>${escapeHtml(s.telemovel||'—')}</div>
+        <div><span class="k">Telefone fixo</span>${escapeHtml(s.telefone_fixo||'—')}</div>
+        <div><span class="k">E-mail</span>${escapeHtml(s.email||'—')}</div>
+      </div>
+    </div>
+    <div class="grid-stats" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));">
+      <div class="stat"><div class="label">Valor Pago</div><div class="value green">${fmtCurrency(totalPago)}</div><div class="muted" style="font-size:12px;margin-top:2px;">${pagas.length} fatura${pagas.length===1?'':'s'}</div></div>
+      <div class="stat"><div class="label">Valor Pendente</div><div class="value amber">${fmtCurrency(totalPendente)}</div><div class="muted" style="font-size:12px;margin-top:2px;">${pendentes.length} fatura${pendentes.length===1?'':'s'}</div></div>
+    </div>
+    <div class="card">
+      <div class="tag-row">
+        <button class="filter-chip ${fdState.tab==='Paga'?'active':''}" onclick="setFdTab('Paga')">F. Pagas (${pagas.length})</button>
+        <button class="filter-chip ${fdState.tab==='Pendente'?'active':''}" onclick="setFdTab('Pendente')">F. Pendentes (${pendentes.length})</button>
+        ${outras.length? `<button class="filter-chip ${fdState.tab==='Outras'?'active':''}" onclick="setFdTab('Outras')">Outras (${outras.length})</button>` : ''}
+      </div>
+      <table>
+        <thead><tr>
+          <th>NIPC</th><th>Fornecedor</th><th>Empresa</th><th>Estado</th><th>Data pgto / prevista</th><th>Tipo</th><th>Mês</th><th>Nº Doc</th><th class="num">Valor</th><th></th>
+        </tr></thead>
+        <tbody id="fdInvoicesBody"></tbody>
+      </table>
+      <div class="pagination" id="fdPagination"></div>
+    </div>
+  `;
+  renderFdInvoicesTable();
+}
+
+function setFdTab(tab){ fdState.tab = tab; fdState.page = 0; renderFornecedorDetailShell(); }
+
+function renderFdInvoicesTable(){
+  const s = supplierById(fdState.supplierId);
+  if(!s) return;
+  const invs = state.invoices.filter(i=>i.fornecedor_id===s.id);
+  let list;
+  if(fdState.tab==='Paga') list = invs.filter(i=>i.status==='Paga');
+  else if(fdState.tab==='Pendente') list = invs.filter(i=>i.status==='Pendente');
+  else list = invs.filter(i=>i.status!=='Paga' && i.status!=='Pendente');
+  list = list.slice().sort((a,b)=>(b.mes_factura||'').localeCompare(a.mes_factura||''));
+  const total = list.length;
+  const pages = Math.max(1, Math.ceil(total/FD_PAGE_SIZE));
+  fdState.page = Math.min(fdState.page, pages-1);
+  const pageItems = list.slice(fdState.page*FD_PAGE_SIZE, (fdState.page+1)*FD_PAGE_SIZE);
+  document.getElementById('fdInvoicesBody').innerHTML = pageItems.length
+    ? pageItems.map(i=>faturaRowHtmlWithNipc(i, s)).join('')
+    : '<tr><td colspan="10" class="empty">Sem faturas nesta categoria.</td></tr>';
+  document.getElementById('fdPagination').innerHTML = `
+    <span>Registo ${total? (fdState.page*FD_PAGE_SIZE+1):0}–${Math.min((fdState.page+1)*FD_PAGE_SIZE,total)} de ${total}</span>
+    <button ${fdState.page===0?'disabled':''} onclick="fdState.page--;renderFdInvoicesTable()">‹</button>
+    <span>Página ${fdState.page+1} / ${pages}</span>
+    <button ${fdState.page>=pages-1?'disabled':''} onclick="fdState.page++;renderFdInvoicesTable()">›</button>
+  `;
+}
+
+function editFornecedor(id){
+  const s = supplierById(id);
+  document.getElementById('modalFornecedorTitle').textContent = 'Editar fornecedor';
+  document.getElementById('ffId').value = s.id;
+  document.getElementById('ffNome').value = s.nome||'';
+  document.getElementById('ffNipc').value = s.nipc||'';
+  document.getElementById('ffLocalidade').value = s.localidade||'';
+  document.getElementById('ffMorada').value = s.morada||'';
+  document.getElementById('ffCodigoPostal').value = s.codigo_postal||'';
+  document.getElementById('ffIban').value = s.iban||'';
+  document.getElementById('ffBanco').value = s.banco||'';
+  document.getElementById('ffContacto').value = s.nome_contacto||'';
+  document.getElementById('ffEmail').value = s.email||'';
+  document.getElementById('ffTelefone').value = s.telefone_fixo||'';
+  document.getElementById('ffTelemovel').value = s.telemovel||'';
+  openModal('modalFornecedor');
+}
+
+document.getElementById('btnNovoFornecedor').addEventListener('click', ()=>{
+  document.getElementById('modalFornecedorTitle').textContent = 'Novo fornecedor';
+  ['ffId','ffNome','ffNipc','ffLocalidade','ffMorada','ffCodigoPostal','ffIban','ffBanco','ffContacto','ffEmail','ffTelefone','ffTelemovel']
+    .forEach(id=>document.getElementById(id).value='');
+  openModal('modalFornecedor');
+});
+
+document.getElementById('btnSaveFornecedor').addEventListener('click', async ()=>{
+  const nome = document.getElementById('ffNome').value.trim();
+  if(!nome){ showToast('O nome é obrigatório'); return; }
+  const id = document.getElementById('ffId').value;
+  const data = {
+    nome,
+    nipc: document.getElementById('ffNipc').value.trim(),
+    localidade: document.getElementById('ffLocalidade').value.trim(),
+    morada: document.getElementById('ffMorada').value.trim(),
+    codigo_postal: document.getElementById('ffCodigoPostal').value.trim(),
+    iban: document.getElementById('ffIban').value.trim(),
+    banco: document.getElementById('ffBanco').value.trim(),
+    nome_contacto: document.getElementById('ffContacto').value.trim(),
+    email: document.getElementById('ffEmail').value.trim(),
+    telefone_fixo: document.getElementById('ffTelefone').value.trim(),
+    telemovel: document.getElementById('ffTelemovel').value.trim(),
+    numero_porta: '', swift: ''
+  };
+  const btn = document.getElementById('btnSaveFornecedor');
+  btn.disabled = true; btn.textContent = 'A guardar...';
+  try{
+    if(id){
+      const s = supplierById(id);
+      Object.assign(s, data);
+      await graphFetch(`/sites/${siteId}/lists/${fornecedoresListId}/items/${s.spId}/fields`, { method:'PATCH', body: JSON.stringify(supplierToSpFields(s)) });
+      showToast('Fornecedor atualizado');
+    } else {
+      const created = await graphFetch(`/sites/${siteId}/lists/${fornecedoresListId}/items`, { method:'POST', body: JSON.stringify({ fields: supplierToSpFields(data) }) });
+      state.suppliers.push({ id: 'sp-'+created.id, spId: created.id, ...data });
+      showToast('Fornecedor criado');
+    }
+    closeModal('modalFornecedor');
+    renderFornecedoresGrid();
+    if(id) openFornecedorDetail(id);
+  }catch(e){
+    console.error(e);
+    showToast('Erro a gravar no SharePoint: ' + e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = 'Guardar';
+  }
+});
+
+/* ====================== FATURAS ====================== */
+let faturasPage = 0;
+const FATURAS_PAGE_SIZE = 50;
+
+function faturaRowHtml(i){
+  const isOverdue = i.status==='Pendente' && i.data_pgto && i.data_pgto < todayISO();
+  return `<tr>
+    <td>${escapeHtml(i.fornecedor_nome)}</td>
+    <td><span class="pill">${escapeHtml(i.entidade||'—')}</span></td>
+    <td>${escapeHtml(i.tipo||'—')}</td>
+    <td>${escapeHtml(i.numero_doc||'—')}</td>
+    <td>${fmtMonth(i.mes_factura)}</td>
+    <td class="num">${fmtCurrency(i.valor)}</td>
+    <td>${statusBadge(i.status)}</td>
+    <td>${isOverdue? '<span class="badge overdue">'+fmtDate(i.data_pgto)+'</span>' : fmtDate(i.data_pgto)}</td>
+    <td style="white-space:nowrap;">
+      ${i.status!=='Paga' ? `<button class="btn small secondary" onclick="quickMarkPaid('${i.id}')">Marcar paga</button>` : ''}
+      <button class="btn small secondary" onclick="editFatura('${i.id}')">Editar</button>
+    </td>
+  </tr>`;
+}
+
+function renderFaturasTab(){
+  const ent = currentEntidadeFilter();
+  const q = (document.getElementById('faturaSearch').value||'').toLowerCase().trim();
+  const statusF = document.getElementById('faturaStatusFilter').value;
+  const anoF = document.getElementById('faturaAnoFilter').value;
+
+  let list = state.invoices.filter(i=>{
+    if(ent && i.entidade!==ent) return false;
+    if(statusF && i.status!==statusF) return false;
+    if(anoF && !(i.mes_factura||'').startsWith(anoF)) return false;
+    if(q && !(i.fornecedor_nome.toLowerCase().includes(q) || (i.numero_doc||'').toLowerCase().includes(q))) return false;
+    return true;
+  });
+  list = list.slice().sort((a,b)=>(b.mes_factura||'').localeCompare(a.mes_factura||''));
+
+  const total = list.length;
+  const pages = Math.max(1, Math.ceil(total/FATURAS_PAGE_SIZE));
+  faturasPage = Math.min(faturasPage, pages-1);
+  const pageItems = list.slice(faturasPage*FATURAS_PAGE_SIZE, (faturasPage+1)*FATURAS_PAGE_SIZE);
+
+  document.getElementById('faturasEmpty').style.display = total? 'none':'block';
+  document.getElementById('faturasBody').innerHTML = pageItems.map(faturaRowHtml).join('');
+  document.getElementById('faturasPagination').innerHTML = `
+    <span>${total} fatura${total===1?'':'s'}</span>
+    <button ${faturasPage===0?'disabled':''} onclick="faturasPage--;renderFaturasTab()">‹</button>
+    <span>Página ${faturasPage+1} / ${pages}</span>
+    <button ${faturasPage>=pages-1?'disabled':''} onclick="faturasPage++;renderFaturasTab()">›</button>
+  `;
+}
+
+function populateAnoFilter(){
+  const anos = new Set(state.invoices.map(i=>(i.mes_factura||'').slice(0,4)).filter(Boolean));
+  const sel = document.getElementById('faturaAnoFilter');
+  const sorted = Array.from(anos).sort().reverse();
+  sel.innerHTML = '<option value="">Todos os anos</option>' + sorted.map(a=>`<option value="${a}">${a}</option>`).join('');
+}
+
+async function quickMarkPaid(invId){
+  const inv = state.invoices.find(i=>i.id===invId);
+  if(!inv) return;
+  const d = prompt('Data de pagamento (AAAA-MM-DD):', todayISO());
+  if(d===null) return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d)){ showToast('Data inválida'); return; }
+  const prevStatus = inv.status, prevData = inv.data_pgto;
+  inv.status = 'Paga';
+  inv.data_pgto = d;
+  renderFaturasTab(); renderDashboard();
+  try{
+    await graphFetch(`/sites/${siteId}/lists/${faturasListId}/items/${inv.spId}/fields`, { method:'PATCH', body: JSON.stringify({ Status:'Paga', DataPagamento: new Date(d+'T00:00:00Z').toISOString() }) });
+    showToast('Fatura marcada como paga');
+  }catch(e){
+    console.error(e);
+    inv.status = prevStatus; inv.data_pgto = prevData;
+    renderFaturasTab(); renderDashboard();
+    showToast('Erro a gravar no SharePoint: ' + e.message);
+  }
+  if(document.getElementById('fornecedorDetail').style.display!=='none') openFornecedorDetail(inv.fornecedor_id);
+}
+
+document.getElementById('btnNovaFatura').addEventListener('click', ()=>openFaturaModal(null,null));
+
+function openFaturaModal(invId, presetFornecedorId){
+  const inv = invId ? state.invoices.find(i=>i.id===invId) : null;
+  document.getElementById('modalFaturaTitle').textContent = inv ? 'Editar fatura' : 'Nova fatura';
+  document.getElementById('finId').value = inv? inv.id : '';
+  document.getElementById('finFornecedorSearch').value = inv ? inv.fornecedor_nome : (presetFornecedorId? supplierById(presetFornecedorId).nome : '');
+  document.getElementById('finFornecedorId').value = inv ? inv.fornecedor_id : (presetFornecedorId||'');
+  document.getElementById('finFornecedorSelected').style.display='none';
+  document.getElementById('finEntidade').value = inv? inv.entidade : (SEED_DATA.entidades[0]||'');
+  document.getElementById('finTipo').value = inv? inv.tipo : 'Factura';
+  document.getElementById('finNumeroDoc').value = inv? inv.numero_doc : '';
+  document.getElementById('finMesFactura').value = inv? (inv.mes_factura||'').slice(0,7) : todayISO().slice(0,7);
+  document.getElementById('finValor').value = inv? inv.valor : '';
+  document.getElementById('finStatus').value = inv? inv.status : 'Pendente';
+  document.getElementById('finDataPgto').value = inv? (inv.data_pgto||'') : '';
+  document.getElementById('finNotas').value = inv? (inv.notas||'') : '';
+  updateFinDataLabel();
+  openModal('modalFatura');
+}
+function editFatura(id){ openFaturaModal(id, null); }
+
+function updateFinDataLabel(){
+  const st = document.getElementById('finStatus').value;
+  document.getElementById('finDataLabel').textContent = st==='Paga' ? 'Data de pagamento' : 'Data prevista de pagamento';
+}
+document.getElementById('finStatus').addEventListener('change', updateFinDataLabel);
+
+document.getElementById('finFornecedorSearch').addEventListener('input', function(){
+  const q = this.value.toLowerCase().trim();
+  const box = document.getElementById('finFornecedorResults');
+  if(!q){ box.style.display='none'; box.innerHTML=''; return; }
+  const matches = state.suppliers.filter(s=>s.nome.toLowerCase().includes(q)).slice(0,8);
+  if(!matches.length){ box.style.display='none'; box.innerHTML=''; return; }
+  box.innerHTML = matches.map(s=>`<div style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--border);" onmousedown="selectFornecedorForFatura('${s.id}')">${escapeHtml(s.nome)} ${s.nipc?'<span class=\"muted\">· '+escapeHtml(s.nipc)+'</span>':''}</div>`).join('');
+  box.style.display='block';
+});
+function selectFornecedorForFatura(id){
+  const s = supplierById(id);
+  document.getElementById('finFornecedorId').value = id;
+  document.getElementById('finFornecedorSearch').value = s.nome;
+  document.getElementById('finFornecedorResults').style.display='none';
+}
+
+document.getElementById('btnSaveFatura').addEventListener('click', async ()=>{
+  const fornecedorId = document.getElementById('finFornecedorId').value;
+  const fornecedorNomeTyped = document.getElementById('finFornecedorSearch').value.trim();
+  if(!fornecedorNomeTyped){ showToast('Indica o fornecedor'); return; }
+  const valor = parseFloat(document.getElementById('finValor').value);
+  if(isNaN(valor)){ showToast('Indica o valor'); return; }
+
+  const btn = document.getElementById('btnSaveFatura');
+  btn.disabled = true; btn.textContent = 'A guardar...';
+  try{
+    let finalFornecedorId = fornecedorId;
+    let finalNome = fornecedorNomeTyped;
+    let finalNipc = '';
+    if(!finalFornecedorId){
+      const existing = state.suppliers.find(s=>s.nome.toLowerCase()===fornecedorNomeTyped.toLowerCase());
+      if(existing){ finalFornecedorId = existing.id; finalNome = existing.nome; finalNipc = existing.nipc||''; }
+      else{
+        const newSup = { nome:fornecedorNomeTyped, nipc:'', morada:'', numero_porta:'', codigo_postal:'',
+          localidade:'', banco:'', iban:'', swift:'', nome_contacto:'', telefone_fixo:'', telemovel:'', email:'' };
+        const created = await graphFetch(`/sites/${siteId}/lists/${fornecedoresListId}/items`, { method:'POST', body: JSON.stringify({ fields: supplierToSpFields(newSup) }) });
+        finalFornecedorId = 'sp-'+created.id;
+        state.suppliers.push({ id: finalFornecedorId, spId: created.id, ...newSup });
+      }
+    } else {
+      const sup = supplierById(finalFornecedorId);
+      finalNome = sup.nome; finalNipc = sup.nipc||'';
+    }
+
+    const mes = document.getElementById('finMesFactura').value;
+    const data = {
+      fornecedor_id: finalFornecedorId, fornecedor_nome: finalNome, fornecedor_nipc: finalNipc,
+      entidade: document.getElementById('finEntidade').value,
+      tipo: document.getElementById('finTipo').value,
+      numero_doc: document.getElementById('finNumeroDoc').value.trim(),
+      mes_factura: mes ? mes+'-01' : null,
+      valor: Math.round(valor*100)/100,
+      status: document.getElementById('finStatus').value,
+      data_pgto: document.getElementById('finDataPgto').value || null,
+      notas: document.getElementById('finNotas').value.trim(),
+    };
+
+    const id = document.getElementById('finId').value;
+    if(id){
+      const inv = state.invoices.find(i=>i.id===id);
+      Object.assign(inv, data);
+      await graphFetch(`/sites/${siteId}/lists/${faturasListId}/items/${inv.spId}/fields`, { method:'PATCH', body: JSON.stringify(invoiceToSpFields(inv)) });
+      showToast('Fatura atualizada');
+    } else {
+      const created = await graphFetch(`/sites/${siteId}/lists/${faturasListId}/items`, { method:'POST', body: JSON.stringify({ fields: invoiceToSpFields(data) }) });
+      state.invoices.push({ id: 'sp-'+created.id, spId: created.id, ...data });
+      showToast('Fatura criada');
+    }
+    closeModal('modalFatura');
+    populateAnoFilter();
+    renderFaturasTab(); renderDashboard(); renderFornecedoresGrid();
+    if(document.getElementById('fornecedorDetail').style.display!=='none') openFornecedorDetail(finalFornecedorId);
+  }catch(e){
+    console.error(e);
+    showToast('Erro a gravar no SharePoint: ' + e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = 'Guardar';
+  }
+});
+
+/* ====================== RELATORIOS ====================== */
+function renderRelatorios(){
+  const ent = currentEntidadeFilter();
+  const incluirConfirmar = document.getElementById('relIncluirConfirmar').checked;
+
+  const pagasAll = state.invoices.filter(i => i.status==='Paga' && (!ent || i.entidade===ent));
+  const pagasComData = pagasAll.filter(i=>i.data_pgto);
+  const pagasSemData = pagasAll.filter(i=>!i.data_pgto);
+  const byMonth = {};
+  pagasComData.forEach(i=>{
+    const key = i.data_pgto.slice(0,7);
+    if(!byMonth[key]) byMonth[key] = {total:0,count:0};
+    byMonth[key].total += i.valor;
+    byMonth[key].count += 1;
+  });
+  const months = Object.keys(byMonth).sort().reverse();
+  let rowsHtml = months.map(m=>`
+    <tr><td>${fmtMonth(m+'-01')}</td><td class="num">${byMonth[m].count}</td><td class="num">${fmtCurrency(byMonth[m].total)}</td></tr>
+  `).join('');
+  if(pagasSemData.length){
+    rowsHtml += `<tr><td><span class="muted">Sem data de pagamento registada</span></td><td class="num">${pagasSemData.length}</td><td class="num">${fmtCurrency(pagasSemData.reduce((a,i)=>a+i.valor,0))}</td></tr>`;
+  }
+  document.getElementById('relPagasBody').innerHTML = rowsHtml || '<tr><td colspan="3" class="empty">Sem faturas pagas.</td></tr>';
+  const totalPagoGeral = pagasAll.reduce((a,i)=>a+i.valor,0);
+  document.getElementById('relPagasCount').textContent = pagasAll.length;
+  document.getElementById('relPagasTotal').textContent = fmtCurrency(totalPagoGeral);
+  if(pagasSemData.length){
+    document.getElementById('relPagasNote').style.display = 'block';
+    document.getElementById('relPagasNote').textContent = `${pagasSemData.length} fatura${pagasSemData.length===1?'':'s'} paga${pagasSemData.length===1?'':'s'} sem data de pagamento registada — não aparece agrupada por mês, mas está incluída no total.`;
+  } else {
+    document.getElementById('relPagasNote').style.display = 'none';
+  }
+
+  const statusesToInclude = incluirConfirmar ? ['Pendente','A confirmar'] : ['Pendente'];
+  const pendentes = state.invoices.filter(i => statusesToInclude.includes(i.status) && (!ent || i.entidade===ent))
+    .slice().sort((a,b)=>(a.data_pgto||'9999').localeCompare(b.data_pgto||'9999'));
+  document.getElementById('relPendentesBody').innerHTML = pendentes.map(i=>{
+    const isOverdue = i.data_pgto && i.data_pgto < todayISO();
+    return `<tr>
+      <td>${escapeHtml(i.fornecedor_nome)}</td>
+      <td><span class="pill">${escapeHtml(i.entidade||'—')}</span></td>
+      <td>${escapeHtml(i.numero_doc||'—')}</td>
+      <td>${statusBadge(i.status)}</td>
+      <td>${isOverdue? '<span class="badge overdue">'+fmtDate(i.data_pgto)+'</span>' : fmtDate(i.data_pgto)}</td>
+      <td class="num">${fmtCurrency(i.valor)}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="6" class="empty">Sem faturas pendentes.</td></tr>';
+  document.getElementById('relPendentesTotal').textContent = fmtCurrency(pendentes.reduce((a,i)=>a+i.valor,0));
+}
+
+/* ====================== CONTA / BACKUP ====================== */
+function renderAccountStatus(){
+  document.getElementById('accountStatus').innerHTML = `
+    Sessão iniciada como <strong>${escapeHtml(currentAccount ? (currentAccount.username||currentAccount.name) : '—')}</strong><br>
+    <span class="muted">${state.suppliers.length} fornecedores · ${state.invoices.length} faturas carregadas do SharePoint.</span>
+  `;
+}
+document.getElementById('btnRefreshData').addEventListener('click', async ()=>{
+  showToast('A atualizar...');
+  try{
+    const spSup = await fetchAllListItems(fornecedoresListId, 'LegacyId,Nome,NIPC,Morada,NumeroPorta,CodigoPostal,Localidade,Banco,IBAN,SWIFT,NomeContacto,TelefoneFixo,Telemovel,Email');
+    state.suppliers = spSup.map(mapSpToSupplier);
+    const spInv = await fetchAllListItems(faturasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,Valor,Status,DataPagamento,Notas');
+    mapInvoicesWithFornecedorIds(spInv);
+    populateAnoFilter();
+    renderDashboard(); renderFornecedoresGrid(); renderFaturasTab(); renderRelatorios(); renderAccountStatus();
+    showToast('Dados atualizados');
+  }catch(e){ console.error(e); showToast('Erro ao atualizar: ' + e.message); }
+});
+document.getElementById('btnLogout').addEventListener('click', ()=>{
+  if(confirm('Terminar sessão?')) logout();
+});
+document.getElementById('btnExport').addEventListener('click', ()=>{
+  const blob = new Blob([JSON.stringify({ suppliers: state.suppliers, invoices: state.invoices, exportedAt: new Date().toISOString() }, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `faturas-backup-${todayISO()}.json`;
+  a.click();
+  showToast('Cópia exportada');
+});
+
+/* ====================== INIT ====================== */
+function populateEntidadeFilters(){
+  const sel = document.getElementById('entidadeGlobalFilter');
+  sel.innerHTML = '<option value="">Todas as empresas</option>' + SEED_DATA.entidades.map(e=>`<option value="${e}">${e}</option>`).join('');
+  const finSel = document.getElementById('finEntidade');
+  finSel.innerHTML = SEED_DATA.entidades.map(e=>`<option value="${e}">${e}</option>`).join('');
+}
+
+function initAfterStateChange(){
+  fornecedoresPage = 0; faturasPage = 0;
+  populateAnoFilter();
+  renderDashboard();
+  showFornecedorList();
+  renderFornecedoresGrid();
+  renderFaturasTab();
+  renderRelatorios();
+}
+
+document.querySelectorAll('#mainNav button').forEach(btn=>{
+  btn.addEventListener('click', ()=>switchView(btn.dataset.view));
+});
+document.getElementById('entidadeGlobalFilter').addEventListener('change', ()=>{
+  renderDashboard(); renderFaturasTab(); renderRelatorios(); renderFornecedoresGrid();
+});
+document.getElementById('fornecedorSearch').addEventListener('input', ()=>{fornecedoresPage=0; renderFornecedoresGrid();});
+document.getElementById('faturaSearch').addEventListener('input', ()=>{faturasPage=0; renderFaturasTab();});
+document.getElementById('faturaStatusFilter').addEventListener('change', ()=>{faturasPage=0; renderFaturasTab();});
+document.getElementById('faturaAnoFilter').addEventListener('change', ()=>{faturasPage=0; renderFaturasTab();});
+document.getElementById('relIncluirConfirmar').addEventListener('change', renderRelatorios);
+
+initAuth();
+</script>
+</body>
+</html>
