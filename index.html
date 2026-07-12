@@ -566,7 +566,7 @@ function invoiceToSpFields(i){
 /* ====================== READ ALL ITEMS (paginated) ====================== */
 async function fetchAllListItems(listId, selectFields){
   let items = [];
-  let url = `/sites/${siteId}/lists/${listId}/items?$expand=fields(select=${selectFields})&$top=200`;
+  let url = `/sites/${siteId}/lists/${listId}/items?$expand=fields($select=${selectFields})&$top=200`;
   while(url){
     const data = await graphFetch(url);
     items = items.concat(data.value||[]);
