@@ -530,10 +530,10 @@ function mapSpToSupplier(item){
 }
 function supplierToSpFields(s){
   return {
-    Title: s.nome, field_1: s.nome, field_2: s.nipc||'', field_3: s.morada||'', field_4: s.numero_porta||'',
-    field_5: s.codigo_postal||'', field_6: s.localidade||'', field_7: s.banco||'', field_8: s.iban||'',
-    field_9: s.swift||'', field_10: s.nome_contacto||'', field_11: s.telefone_fixo||'',
-    field_12: s.telemovel||'', field_13: s.email||''
+    Title: s.nome, field_1: s.nome, field_2: s.nipc? Number(s.nipc) : null, field_3: s.morada||'', field_4: s.numero_porta||'',
+    field_5: s.codigo_postal? Number(s.codigo_postal) : null, field_6: s.localidade||'', field_7: s.banco||'', field_8: s.iban||'',
+    field_9: s.swift||'', field_10: s.nome_contacto||'', field_11: s.telefone_fixo? Number(s.telefone_fixo) : null,
+    field_12: s.telemovel? Number(s.telemovel) : null, field_13: s.email||''
   };
 }
 function mapSpToInvoice(item){
