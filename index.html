@@ -530,7 +530,7 @@ function mapSpToSupplier(item){
 }
 function supplierToSpFields(s){
   return {
-    Title: s.nome, Nome: s.nome, NIPC: s.nipc||'', Morada: s.morada||'', NumeroPorta: s.numero_porta||'',
+    Title: s.nome, NIPC: s.nipc||'', Morada: s.morada||'', NumeroPorta: s.numero_porta||'',
     CodigoPostal: s.codigo_postal||'', Localidade: s.localidade||'', Banco: s.banco||'', IBAN: s.iban||'',
     SWIFT: s.swift||'', NomeContacto: s.nome_contacto||'', TelefoneFixo: s.telefone_fixo||'',
     Telemovel: s.telemovel||'', Email: s.email||''
@@ -1115,7 +1115,7 @@ document.getElementById('btnSaveFatura').addEventListener('click', async ()=>{
     let finalNome = fornecedorNomeTyped;
     let finalNipc = '';
     if(!finalFornecedorId){
-      const existing = state.suppliers.find(s=>s.nome.toLowerCase()===fornecedorNomeTyped.toLowerCase());
+      const existing = state.suppliers.find(s=>s.nome.trim().toLowerCase()===fornecedorNomeTyped.trim().toLowerCase());
       if(existing){ finalFornecedorId = existing.id; finalNome = existing.nome; finalNipc = existing.nipc||''; }
       else{
         const newSup = { nome:fornecedorNomeTyped, nipc:'', morada:'', numero_porta:'', codigo_postal:'',
