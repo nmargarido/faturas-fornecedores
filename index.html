@@ -520,20 +520,20 @@ function mapSpToSupplier(item){
   const f = item.fields || {};
   return {
     id: 'sp-' + item.id, spId: item.id,
-    nome: f.Nome || '', nipc: f.NIPC!=null? String(f.NIPC) : '',
-    morada: f.Morada || '', numero_porta: f.NumeroPorta || '',
-    codigo_postal: f.CodigoPostal!=null? String(f.CodigoPostal) : '',
-    localidade: f.Localidade || '', banco: f.Banco || '', iban: f.IBAN || '', swift: f.SWIFT || '',
-    nome_contacto: f.NomeContacto || '', telefone_fixo: f.TelefoneFixo || '', telemovel: f.Telemovel || '',
-    email: f.Email || '', legacyId: f.LegacyId || ''
+    nome: f.field_1 || '', nipc: f.field_2!=null? String(f.field_2) : '',
+    morada: f.field_3 || '', numero_porta: f.field_4 || '',
+    codigo_postal: f.field_5!=null? String(f.field_5) : '',
+    localidade: f.field_6 || '', banco: f.field_7 || '', iban: f.field_8 || '', swift: f.field_9 || '',
+    nome_contacto: f.field_10 || '', telefone_fixo: f.field_11 || '', telemovel: f.field_12 || '',
+    email: f.field_13 || '', legacyId: f.LegacyId || ''
   };
 }
 function supplierToSpFields(s){
   return {
-    Title: s.nome, NIPC: s.nipc||'', Morada: s.morada||'', NumeroPorta: s.numero_porta||'',
-    CodigoPostal: s.codigo_postal||'', Localidade: s.localidade||'', Banco: s.banco||'', IBAN: s.iban||'',
-    SWIFT: s.swift||'', NomeContacto: s.nome_contacto||'', TelefoneFixo: s.telefone_fixo||'',
-    Telemovel: s.telemovel||'', Email: s.email||''
+    Title: s.nome, field_1: s.nome, field_2: s.nipc||'', field_3: s.morada||'', field_4: s.numero_porta||'',
+    field_5: s.codigo_postal||'', field_6: s.localidade||'', field_7: s.banco||'', field_8: s.iban||'',
+    field_9: s.swift||'', field_10: s.nome_contacto||'', field_11: s.telefone_fixo||'',
+    field_12: s.telemovel||'', field_13: s.email||''
   };
 }
 function mapSpToInvoice(item){
