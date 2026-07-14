@@ -231,6 +231,7 @@
       <div id="accountStatus" style="margin-bottom:14px;font-size:13.5px;"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
         <button class="btn secondary" id="btnRefreshData">Atualizar a partir do SharePoint</button>
+        <button class="btn secondary" id="btnResumeImport">Retomar importação de faturas em falta</button>
         <button class="btn danger" id="btnLogout">Terminar sessão</button>
       </div>
     </div>
@@ -613,6 +614,88 @@ async function runBulkImport(){
   }
   setAuthGateMsg('Importação concluída!');
   showToast('Importação inicial concluída');
+}
+
+/* ====================== RESUME IMPORT (faturas em falta) ====================== */
+function invoiceKey(fornecedorLegacyId, numeroDoc, mesFactura, valor){
+  const mes = mesFactura ? String(mesFactura).slice(0,10) : '';
+  const val = Number(valor||0).toFixed(2);
+  return `${fornecedorLegacyId||''}|${numeroDoc||''}|${mes}|${val}`;
+}
+async function resumeBulkImport(){
+  const btn = document.getElementById('btnResumeImport');
+  btn.disabled = true; btn.textContent = 'A verificar...';
+  document.getElementById('authGate').style.display = 'flex';
+  setAuthGateSpinner(true);
+  setAuthGateMsg('A verificar faturas já existentes no SharePoint...');
+  setAuthGateProgress(0, '');
+  try{
+    const spInv = await fetchAllListItems(faturasListId, 'FornecedorLegacyId,NumeroDoc,MesFactura,Valor');
+    const existingKeys = new Set();
+    spInv.forEach(item=>{
+      const f = item.fields || {};
+      existingKeys.add(invoiceKey(f.FornecedorLegacyId, f.NumeroDoc, f.MesFactura, f.Valor));
+    });
+
+    const supplierById_ = {};
+    SEED_DATA.suppliers.forEach(s=> supplierById_[s.id]=s);
+
+    const missing = SEED_DATA.invoices.filter(inv=>{
+      const key = invoiceKey(inv.fornecedor_id, inv.numero_doc, inv.mes_factura, inv.valor);
+      return !existingKeys.has(key);
+    });
+
+    if(missing.length===0){
+      setAuthGateMsg('Já estavam todas importadas — nada a fazer.');
+      setAuthGateSpinner(false);
+      showToast('Nada a importar, já estava tudo lá');
+      setTimeout(()=>{ document.getElementById('authGate').style.display='none'; }, 1800);
+      return;
+    }
+
+    setAuthGateMsg(`A importar ${missing.length} faturas em falta...`);
+    const total = missing.length;
+    let done = 0;
+    const CHUNK = 20;
+    for(let i=0; i<missing.length; i+=CHUNK){
+      const chunk = missing.slice(i, i+CHUNK);
+      const requests = chunk.map((inv, idx)=>{
+        const sup = supplierById_[inv.fornecedor_id] || {};
+        const fields = invoiceToSpFields({
+          fornecedor_nome: inv.fornecedor_nome, fornecedor_nipc: sup.nipc||'',
+          fornecedor_id: inv.fornecedor_id||'', entidade: inv.entidade, tipo: inv.tipo,
+          numero_doc: inv.numero_doc, mes_factura: inv.mes_factura, valor: inv.valor,
+          status: inv.status, data_pgto: inv.data_pgto, notas: inv.notas
+        });
+        return {
+          id: String(idx), method:"POST",
+          url: `/sites/${siteId}/lists/${faturasListId}/items`,
+          body: { fields }
+        };
+      });
+      await graphBatch(requests);
+      done += chunk.length;
+      const pct = Math.round(done/total*100);
+      setAuthGateProgress(pct, `${done} / ${total} faturas em falta importadas`);
+    }
+
+    setAuthGateMsg('Importação concluída!');
+    setAuthGateSpinner(false);
+    showToast(`${missing.length} faturas importadas`);
+
+    const spInv2 = await fetchAllListItems(faturasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,Valor,Status,DataPagamento,Notas');
+    mapInvoicesWithFornecedorIds(spInv2);
+    populateAnoFilter();
+    renderDashboard(); renderFaturasTab(); renderRelatorios(); renderAccountStatus();
+    setTimeout(()=>{ document.getElementById('authGate').style.display='none'; }, 1500);
+  }catch(e){
+    console.error(e);
+    setAuthGateMsg('Erro: ' + e.message);
+    setAuthGateSpinner(false);
+    showToast('Erro a retomar importação: ' + e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = 'Retomar importação de faturas em falta';
+  }
 }
 
 /* ====================== APP STARTUP ====================== */
@@ -1236,6 +1319,9 @@ document.getElementById('btnRefreshData').addEventListener('click', async ()=>{
 });
 document.getElementById('btnLogout').addEventListener('click', ()=>{
   if(confirm('Terminar sessão?')) logout();
+});
+document.getElementById('btnResumeImport').addEventListener('click', ()=>{
+  if(confirm('Isto vai comparar as faturas já no SharePoint com os dados originais e importar apenas as que faltam. Continuar?')) resumeBulkImport();
 });
 document.getElementById('btnExport').addEventListener('click', ()=>{
   const blob = new Blob([JSON.stringify({ suppliers: state.suppliers, invoices: state.invoices, exportedAt: new Date().toISOString() }, null, 2)], {type:'application/json'});
