@@ -265,6 +265,7 @@
       <div class="form-row"><label>Telemóvel</label><input type="text" id="ffTelemovel"></div>
     </div>
     <div class="modal-actions">
+      <button class="btn danger" id="btnDeleteFornecedor" style="display:none;margin-right:auto;">Apagar</button>
       <button class="btn secondary" onclick="closeModal('modalFornecedor')">Cancelar</button>
       <button class="btn" id="btnSaveFornecedor">Guardar</button>
     </div>
@@ -300,8 +301,24 @@
       <div class="form-row" style="grid-column:1/-1;"><label>Notas</label><textarea id="finNotas" rows="2"></textarea></div>
     </div>
     <div class="modal-actions">
+      <button class="btn danger" id="btnDeleteFatura" style="display:none;margin-right:auto;">Apagar</button>
       <button class="btn secondary" onclick="closeModal('modalFatura')">Cancelar</button>
       <button class="btn" id="btnSaveFatura">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Marcar paga -->
+<div class="modal-overlay" id="modalMarkPaid">
+  <div class="modal" style="max-width:340px;">
+    <h3>Marcar como paga</h3>
+    <div class="form-row">
+      <label>Data de pagamento</label>
+      <input type="date" id="mpData">
+    </div>
+    <div class="modal-actions">
+      <button class="btn secondary" onclick="closeModal('modalMarkPaid')">Cancelar</button>
+      <button class="btn" id="btnConfirmMarkPaid">Confirmar</button>
     </div>
   </div>
 </div>
@@ -1007,6 +1024,7 @@ function editFornecedor(id){
   document.getElementById('ffEmail').value = s.email||'';
   document.getElementById('ffTelefone').value = s.telefone_fixo||'';
   document.getElementById('ffTelemovel').value = s.telemovel||'';
+  document.getElementById('btnDeleteFornecedor').style.display = 'inline-block';
   openModal('modalFornecedor');
 }
 
@@ -1014,6 +1032,7 @@ document.getElementById('btnNovoFornecedor').addEventListener('click', ()=>{
   document.getElementById('modalFornecedorTitle').textContent = 'Novo fornecedor';
   ['ffId','ffNome','ffNipc','ffLocalidade','ffMorada','ffCodigoPostal','ffIban','ffBanco','ffContacto','ffEmail','ffTelefone','ffTelemovel']
     .forEach(id=>document.getElementById(id).value='');
+  document.getElementById('btnDeleteFornecedor').style.display = 'none';
   openModal('modalFornecedor');
 });
 
@@ -1118,12 +1137,22 @@ function populateAnoFilter(){
   sel.innerHTML = '<option value="">Todos os anos</option>' + sorted.map(a=>`<option value="${a}">${a}</option>`).join('');
 }
 
-async function quickMarkPaid(invId){
+let markPaidTargetId = null;
+function quickMarkPaid(invId){
   const inv = state.invoices.find(i=>i.id===invId);
   if(!inv) return;
-  const d = prompt('Data de pagamento (AAAA-MM-DD):', todayISO());
-  if(d===null) return;
+  markPaidTargetId = invId;
+  document.getElementById('mpData').value = inv.data_pgto || todayISO();
+  openModal('modalMarkPaid');
+}
+
+document.getElementById('btnConfirmMarkPaid').addEventListener('click', async ()=>{
+  const invId = markPaidTargetId;
+  const inv = state.invoices.find(i=>i.id===invId);
+  if(!inv){ closeModal('modalMarkPaid'); return; }
+  const d = document.getElementById('mpData').value;
   if(!/^\d{4}-\d{2}-\d{2}$/.test(d)){ showToast('Data inválida'); return; }
+  closeModal('modalMarkPaid');
   const prevStatus = inv.status, prevData = inv.data_pgto;
   inv.status = 'Paga';
   inv.data_pgto = d;
@@ -1138,7 +1167,7 @@ async function quickMarkPaid(invId){
     showToast('Erro a gravar no SharePoint: ' + e.message);
   }
   if(document.getElementById('fornecedorDetail').style.display!=='none') openFornecedorDetail(inv.fornecedor_id);
-}
+});
 
 document.getElementById('btnNovaFatura').addEventListener('click', ()=>openFaturaModal(null,null));
 
@@ -1157,6 +1186,7 @@ function openFaturaModal(invId, presetFornecedorId){
   document.getElementById('finStatus').value = inv? inv.status : 'Pendente';
   document.getElementById('finDataPgto').value = inv? (inv.data_pgto||'') : '';
   document.getElementById('finNotas').value = inv? (inv.notas||'') : '';
+  document.getElementById('btnDeleteFatura').style.display = inv ? 'inline-block' : 'none';
   updateFinDataLabel();
   openModal('modalFatura');
 }
@@ -1245,6 +1275,58 @@ document.getElementById('btnSaveFatura').addEventListener('click', async ()=>{
     showToast('Erro a gravar no SharePoint: ' + e.message);
   }finally{
     btn.disabled = false; btn.textContent = 'Guardar';
+  }
+});
+
+document.getElementById('btnDeleteFornecedor').addEventListener('click', async ()=>{
+  const id = document.getElementById('ffId').value;
+  if(!id) return;
+  const s = supplierById(id);
+  if(!s) return;
+  const linked = state.invoices.filter(i=>i.fornecedor_id===id);
+  if(linked.length){
+    alert(`Não é possível apagar "${s.nome}": tem ${linked.length} fatura${linked.length===1?'':'s'} associada${linked.length===1?'':'s'}.\n\nApaga primeiro essas faturas (ou muda-as de fornecedor) antes de apagar o fornecedor.`);
+    return;
+  }
+  if(!confirm(`Apagar o fornecedor "${s.nome}"?\n\nEsta ação não pode ser desfeita.`)) return;
+  const btn = document.getElementById('btnDeleteFornecedor');
+  btn.disabled = true; btn.textContent = 'A apagar...';
+  try{
+    await graphFetch(`/sites/${siteId}/lists/${fornecedoresListId}/items/${s.spId}`, { method:'DELETE' });
+    state.suppliers = state.suppliers.filter(x=>x.id!==id);
+    closeModal('modalFornecedor');
+    renderFornecedoresGrid();
+    if(document.getElementById('fornecedorDetail').style.display!=='none') document.getElementById('fornecedorDetail').style.display='none';
+    showToast('Fornecedor apagado');
+  }catch(e){
+    console.error(e);
+    showToast('Erro a apagar no SharePoint: ' + e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = 'Apagar';
+  }
+});
+
+document.getElementById('btnDeleteFatura').addEventListener('click', async ()=>{
+  const id = document.getElementById('finId').value;
+  if(!id) return;
+  const inv = state.invoices.find(i=>i.id===id);
+  if(!inv) return;
+  if(!confirm(`Apagar a fatura ${inv.numero_doc||'(sem nº)'} de ${inv.fornecedor_nome} — ${fmtCurrency(inv.valor)}?\n\nEsta ação não pode ser desfeita.`)) return;
+  const btn = document.getElementById('btnDeleteFatura');
+  btn.disabled = true; btn.textContent = 'A apagar...';
+  try{
+    await graphFetch(`/sites/${siteId}/lists/${faturasListId}/items/${inv.spId}`, { method:'DELETE' });
+    state.invoices = state.invoices.filter(i=>i.id!==id);
+    closeModal('modalFatura');
+    populateAnoFilter();
+    renderFaturasTab(); renderDashboard(); renderFornecedoresGrid();
+    if(document.getElementById('fornecedorDetail').style.display!=='none') openFornecedorDetail(inv.fornecedor_id);
+    showToast('Fatura apagada');
+  }catch(e){
+    console.error(e);
+    showToast('Erro a apagar no SharePoint: ' + e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = 'Apagar';
   }
 });
 
