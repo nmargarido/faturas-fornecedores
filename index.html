@@ -419,10 +419,9 @@ document.getElementById('btnLogin').addEventListener('click', async ()=>{
     document.getElementById('btnLogin').style.display = 'none';
     setAuthGateSpinner(true);
     setAuthGateMsg('A abrir o login da Microsoft...');
-    const result = await msalInstance.loginPopup({ scopes: GRAPH_SCOPES });
-    currentAccount = result.account;
-    msalInstance.setActiveAccount(result.account);
-    await startApp();
+    await msalInstance.loginRedirect({ scopes: GRAPH_SCOPES });
+    // A partir daqui o browser navega para a Microsoft; o regresso é tratado
+    // em handleRedirectPromise() dentro de initAuth() quando a página recarrega.
   }catch(e){
     console.error(e);
     setAuthGateSpinner(false);
