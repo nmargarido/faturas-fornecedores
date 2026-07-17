@@ -195,29 +195,32 @@
   <!-- RELATORIOS -->
   <div class="view" id="view-relatorios">
     <div class="card">
-      <h2>Faturas pagas por mês</h2>
-      <div class="sub">Total pago, agrupado pelo mês em que foi paga.</div>
-      <div class="sub" id="relPagasNote" style="display:none;color:var(--amber);"></div>
-      <table>
-        <thead><tr><th>Mês</th><th class="num">Nº Faturas</th><th class="num">Total pago</th></tr></thead>
-        <tbody id="relPagasBody"></tbody>
-        <tfoot><tr style="font-weight:700;border-top:2px solid var(--border);">
-          <td>Total</td><td class="num" id="relPagasCount"></td><td class="num" id="relPagasTotal"></td>
-        </tr></tfoot>
-      </table>
-    </div>
-    <div class="card">
-      <h2>Faturas pendentes de pagamento</h2>
-      <div class="sub">
-        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
-          <input type="checkbox" id="relIncluirConfirmar"> incluir também as "a confirmar"
-        </label>
+      <h2>Relatório de faturas</h2>
+      <div class="sub">Filtra por período (mês da fatura), empresa e estado.</div>
+      <div class="form-grid">
+        <div class="form-row"><label>De (mês)</label><input type="month" id="relDataDe"></div>
+        <div class="form-row"><label>Até (mês)</label><input type="month" id="relDataAte"></div>
       </div>
-      <table>
-        <thead><tr><th>Fornecedor</th><th>Empresa</th><th>Nº Doc</th><th>Estado</th><th>A pagar até</th><th class="num">Valor</th></tr></thead>
-        <tbody id="relPendentesBody"></tbody>
+      <div class="form-row"><label>Empresa</label><select id="relEmpresaFilter"><option value="">Todas as empresas</option></select></div>
+      <div class="form-row">
+        <label>Estado</label>
+        <div id="relEstadoFilter" style="display:flex;flex-wrap:wrap;gap:12px;"></div>
+      </div>
+      <div class="grid-stats" style="margin-top:6px;">
+        <div class="card" style="padding:12px 16px;margin-bottom:0;">
+          <div class="sub" style="margin-bottom:2px;">Nº de faturas no período</div>
+          <div style="font-size:22px;font-weight:700;" id="relTotalCount">0</div>
+        </div>
+        <div class="card" style="padding:12px 16px;margin-bottom:0;">
+          <div class="sub" style="margin-bottom:2px;">Valor total no período</div>
+          <div style="font-size:22px;font-weight:700;" id="relTotalValor">€0,00</div>
+        </div>
+      </div>
+      <table style="margin-top:16px;">
+        <thead><tr><th>Fornecedor</th><th>Empresa</th><th>Nº Doc</th><th>Estado</th><th>Mês fatura</th><th class="num">Valor</th></tr></thead>
+        <tbody id="relResultBody"></tbody>
         <tfoot><tr style="font-weight:700;border-top:2px solid var(--border);">
-          <td colspan="5">Total</td><td class="num" id="relPendentesTotal"></td>
+          <td colspan="5">Total</td><td class="num" id="relResultTotal"></td>
         </tr></tfoot>
       </table>
     </div>
@@ -1331,54 +1334,59 @@ document.getElementById('btnDeleteFatura').addEventListener('click', async ()=>{
 });
 
 /* ====================== RELATORIOS ====================== */
+function populateRelatorioFilters(){
+  const empSel = document.getElementById('relEmpresaFilter');
+  const prevEmp = empSel.value;
+  empSel.innerHTML = '<option value="">Todas as empresas</option>' + state.entidades.map(e=>`<option value="${escapeHtml(e)}">${escapeHtml(e)}</option>`).join('');
+  empSel.value = prevEmp;
+
+  const estadoBox = document.getElementById('relEstadoFilter');
+  if(!estadoBox.dataset.built){
+    estadoBox.innerHTML = state.statuses.map(s=>`
+      <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-weight:400;">
+        <input type="checkbox" class="relEstadoChk" value="${escapeHtml(s)}" checked> ${escapeHtml(s)}
+      </label>`).join('');
+    estadoBox.dataset.built = '1';
+    estadoBox.querySelectorAll('.relEstadoChk').forEach(chk=>chk.addEventListener('change', renderRelatorios));
+  }
+}
+
 function renderRelatorios(){
-  const ent = currentEntidadeFilter();
-  const incluirConfirmar = document.getElementById('relIncluirConfirmar').checked;
+  populateRelatorioFilters();
 
-  const pagasAll = state.invoices.filter(i => i.status==='Paga' && (!ent || i.entidade===ent));
-  const pagasComData = pagasAll.filter(i=>i.data_pgto);
-  const pagasSemData = pagasAll.filter(i=>!i.data_pgto);
-  const byMonth = {};
-  pagasComData.forEach(i=>{
-    const key = i.data_pgto.slice(0,7);
-    if(!byMonth[key]) byMonth[key] = {total:0,count:0};
-    byMonth[key].total += i.valor;
-    byMonth[key].count += 1;
-  });
-  const months = Object.keys(byMonth).sort().reverse();
-  let rowsHtml = months.map(m=>`
-    <tr><td>${fmtMonth(m+'-01')}</td><td class="num">${byMonth[m].count}</td><td class="num">${fmtCurrency(byMonth[m].total)}</td></tr>
-  `).join('');
-  if(pagasSemData.length){
-    rowsHtml += `<tr><td><span class="muted">Sem data de pagamento registada</span></td><td class="num">${pagasSemData.length}</td><td class="num">${fmtCurrency(pagasSemData.reduce((a,i)=>a+i.valor,0))}</td></tr>`;
-  }
-  document.getElementById('relPagasBody').innerHTML = rowsHtml || '<tr><td colspan="3" class="empty">Sem faturas pagas.</td></tr>';
-  const totalPagoGeral = pagasAll.reduce((a,i)=>a+i.valor,0);
-  document.getElementById('relPagasCount').textContent = pagasAll.length;
-  document.getElementById('relPagasTotal').textContent = fmtCurrency(totalPagoGeral);
-  if(pagasSemData.length){
-    document.getElementById('relPagasNote').style.display = 'block';
-    document.getElementById('relPagasNote').textContent = `${pagasSemData.length} fatura${pagasSemData.length===1?'':'s'} paga${pagasSemData.length===1?'':'s'} sem data de pagamento registada — não aparece agrupada por mês, mas está incluída no total.`;
-  } else {
-    document.getElementById('relPagasNote').style.display = 'none';
-  }
+  const de = document.getElementById('relDataDe').value;   // 'YYYY-MM' or ''
+  const ate = document.getElementById('relDataAte').value; // 'YYYY-MM' or ''
+  const emp = document.getElementById('relEmpresaFilter').value;
+  const estadosSelecionados = Array.from(document.querySelectorAll('.relEstadoChk'))
+    .filter(chk=>chk.checked).map(chk=>chk.value);
 
-  const statusesToInclude = incluirConfirmar ? ['Pendente','A confirmar'] : ['Pendente'];
-  const pendentes = state.invoices.filter(i => statusesToInclude.includes(i.status) && (!ent || i.entidade===ent))
-    .slice().sort((a,b)=>(a.data_pgto||'9999').localeCompare(b.data_pgto||'9999'));
-  document.getElementById('relPendentesBody').innerHTML = pendentes.map(i=>{
-    const isOverdue = i.data_pgto && i.data_pgto < todayISO();
-    return `<tr>
+  const filtered = state.invoices.filter(i=>{
+    const mes = i.mes_factura ? i.mes_factura.slice(0,7) : '';
+    if(de && (!mes || mes < de)) return false;
+    if(ate && (!mes || mes > ate)) return false;
+    if(emp && i.entidade !== emp) return false;
+    if(!estadosSelecionados.includes(i.status)) return false;
+    return true;
+  }).slice().sort((a,b)=>(b.mes_factura||'').localeCompare(a.mes_factura||''));
+
+  document.getElementById('relResultBody').innerHTML = filtered.map(i=>`
+    <tr>
       <td>${escapeHtml(i.fornecedor_nome)}</td>
       <td><span class="pill">${escapeHtml(i.entidade||'—')}</span></td>
       <td>${escapeHtml(i.numero_doc||'—')}</td>
       <td>${statusBadge(i.status)}</td>
-      <td>${isOverdue? '<span class="badge overdue">'+fmtDate(i.data_pgto)+'</span>' : fmtDate(i.data_pgto)}</td>
+      <td>${fmtMonth(i.mes_factura)}</td>
       <td class="num">${fmtCurrency(i.valor)}</td>
-    </tr>`;
-  }).join('') || '<tr><td colspan="6" class="empty">Sem faturas pendentes.</td></tr>';
-  document.getElementById('relPendentesTotal').textContent = fmtCurrency(pendentes.reduce((a,i)=>a+i.valor,0));
+    </tr>`).join('') || '<tr><td colspan="6" class="empty">Sem faturas para os filtros escolhidos.</td></tr>';
+
+  const totalValor = filtered.reduce((a,i)=>a+i.valor,0);
+  document.getElementById('relTotalCount').textContent = filtered.length;
+  document.getElementById('relTotalValor').textContent = fmtCurrency(totalValor);
+  document.getElementById('relResultTotal').textContent = fmtCurrency(totalValor);
 }
+document.getElementById('relDataDe').addEventListener('change', renderRelatorios);
+document.getElementById('relDataAte').addEventListener('change', renderRelatorios);
+document.getElementById('relEmpresaFilter').addEventListener('change', renderRelatorios);
 
 /* ====================== CONTA / BACKUP ====================== */
 function renderAccountStatus(){
@@ -1427,7 +1435,7 @@ function initAfterStateChange(){
   populateAnoFilter();
   renderDashboard();
   showFornecedorList();
-  renderFornecedoresGrid();
+populateRelatorioFilterspopulateRelatorioFilters  renderFornecedoresGrid();
   renderFaturasTab();
   renderRelatorios();
 }
@@ -1442,7 +1450,6 @@ document.getElementById('fornecedorSearch').addEventListener('input', ()=>{forne
 document.getElementById('faturaSearch').addEventListener('input', ()=>{faturasPage=0; renderFaturasTab();});
 document.getElementById('faturaStatusFilter').addEventListener('change', ()=>{faturasPage=0; renderFaturasTab();});
 document.getElementById('faturaAnoFilter').addEventListener('change', ()=>{faturasPage=0; renderFaturasTab();});
-document.getElementById('relIncluirConfirmar').addEventListener('change', renderRelatorios);
 
 initAuth();
 </script>
