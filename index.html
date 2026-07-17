@@ -626,6 +626,633 @@ async function runBulkImport(){
         body: { fields }
       };
     });
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestão de Faturas de Fornecedores</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#ffffff; --border:#e2e5ea; --text:#1f2430; --muted:#6b7280;
+    --accent:#2563eb; --accent-dark:#1d4ed8; --accent-light:#eaf1ff;
+    --green:#15803d; --green-bg:#e8f7ee; --amber:#b45309; --amber-bg:#fef3e0;
+    --red:#b91c1c; --red-bg:#fdeceb; --gray-bg:#eef0f3;
+    --radius:10px; --shadow:0 1px 3px rgba(20,20,30,.08), 0 1px 2px rgba(20,20,30,.04);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);}
+  header{background:var(--card);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:20px;position:sticky;top:0;z-index:50;flex-wrap:wrap;}
+  header h1{font-size:18px;margin:0;font-weight:700;white-space:nowrap;}
+  nav{display:flex;gap:4px;flex-wrap:wrap;}
+  nav button{background:none;border:none;padding:8px 14px;border-radius:8px;font-size:14px;cursor:pointer;color:var(--muted);font-weight:600;}
+  nav button.active{background:var(--accent-light);color:var(--accent-dark);}
+  nav button:hover{background:var(--gray-bg);}
+  .spacer{flex:1;}
+  select, input, textarea{font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text);}
+  select:focus, input:focus, textarea:focus{outline:2px solid var(--accent-light);border-color:var(--accent);}
+  main{padding:24px;max-width:1180px;margin:0 auto;}
+  .view{display:none;}
+  .view.active{display:block;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:18px;}
+  .card h2{margin:0 0 4px;font-size:15px;}
+  .card .sub{color:var(--muted);font-size:12.5px;margin-bottom:14px;}
+  .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;}
+  .toolbar input[type=text],.toolbar input[type=search]{min-width:220px;flex:1;}
+  .btn{background:var(--accent);color:#fff;border:none;padding:9px 16px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;}
+  .btn:hover{background:var(--accent-dark);}
+  .btn:disabled{opacity:.55;cursor:default;}
+  .btn.secondary{background:var(--gray-bg);color:var(--text);}
+  .btn.secondary:hover{background:#e2e5ea;}
+  .btn.danger{background:var(--red-bg);color:var(--red);}
+  .btn.danger:hover{background:#f9d9d6;}
+  .btn.small{padding:5px 10px;font-size:12.5px;border-radius:6px;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em;padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  td{padding:9px 10px;border-bottom:1px solid #edeff2;vertical-align:middle;}
+  tr.clickable{cursor:pointer;}
+  tr.clickable:hover td{background:var(--gray-bg);}
+  .num{text-align:right;font-variant-numeric:tabular-nums;}
+  .badge{display:inline-block;padding:3px 9px;border-radius:99px;font-size:11.5px;font-weight:700;white-space:nowrap;}
+  .badge.paga{background:var(--green-bg);color:var(--green);}
+  .badge.pendente{background:var(--amber-bg);color:var(--amber);}
+  .badge.confirmar{background:var(--gray-bg);color:var(--muted);}
+  .badge.disputa{background:var(--red-bg);color:var(--red);}
+  .badge.overdue{background:var(--red-bg);color:var(--red);}
+  .muted{color:var(--muted);}
+  .pill{display:inline-block;padding:2px 8px;border-radius:6px;background:var(--gray-bg);font-size:11.5px;font-weight:600;color:var(--text);}
+  .grid-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px;}
+  .stat{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);}
+  .stat .label{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;}
+  .stat .value{font-size:22px;font-weight:700;}
+  .stat .value.amber{color:var(--amber);}
+  .stat .value.green{color:var(--green);}
+  .stat .value.red{color:var(--red);}
+  .pagination{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px;font-size:13px;color:var(--muted);}
+  .pagination button{background:var(--gray-bg);border:none;padding:6px 10px;border-radius:6px;cursor:pointer;}
+  .pagination button:disabled{opacity:.4;cursor:default;}
+  .modal-overlay{position:fixed;inset:0;background:rgba(15,18,25,.45);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto;z-index:100;}
+  .modal-overlay.active{display:flex;}
+  .modal{background:#fff;border-radius:12px;padding:22px 24px;width:100%;max-width:520px;box-shadow:0 20px 50px rgba(0,0,0,.25);}
+  .modal h3{margin:0 0 16px;font-size:16px;}
+  .form-row{margin-bottom:12px;}
+  .form-row label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:5px;}
+  .form-row input, .form-row select, .form-row textarea{width:100%;}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+  .empty{text-align:center;padding:40px 20px;color:var(--muted);font-size:14px;}
+  .supplier-card{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer;background:#fff;}
+  .supplier-card:hover{border-color:var(--accent);background:var(--accent-light);}
+  .supplier-card .name{font-weight:600;font-size:14px;}
+  .supplier-card .meta{font-size:12px;color:var(--muted);margin-top:2px;}
+  .back-link{display:inline-flex;align-items:center;gap:6px;color:var(--accent);font-size:13.5px;font-weight:600;cursor:pointer;margin-bottom:14px;}
+  .detail-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 24px;font-size:13.5px;margin-bottom:6px;}
+  .detail-grid div span.k{color:var(--muted);display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px;}
+  .tag-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+  .filter-chip{padding:6px 12px;border-radius:99px;border:1px solid var(--border);background:#fff;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--muted);}
+  .filter-chip.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+  footer.hint{max-width:1180px;margin:0 auto;padding:0 24px 40px;color:var(--muted);font-size:12px;line-height:1.6;}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1f2430;color:#fff;padding:10px 18px;border-radius:8px;font-size:13.5px;box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:200;opacity:0;pointer-events:none;transition:opacity .2s ease;}
+  .toast.show{opacity:1;}
+  #authGate{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:500;flex-direction:column;gap:18px;padding:24px;text-align:center;}
+  #authGate .box{max-width:420px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:32px 28px;}
+  #authGate h2{margin:0 0 8px;font-size:19px;}
+  #authGate p{color:var(--muted);font-size:13.5px;margin:0 0 20px;line-height:1.6;}
+  .spinner{width:22px;height:22px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 14px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .progress-bar{width:100%;height:10px;background:var(--gray-bg);border-radius:99px;overflow:hidden;margin:12px 0;}
+  .progress-bar-fill{height:100%;background:var(--accent);transition:width .2s ease;}
+  @media (max-width:640px){
+    .detail-grid{grid-template-columns:1fr 1fr;}
+    .form-grid{grid-template-columns:1fr;}
+    header{padding:12px 14px;}
+    main{padding:14px;}
+  }
+</style>
+</head>
+<body>
+
+<div id="authGate">
+  <div class="box">
+    <h2>Faturas de Fornecedores</h2>
+    <p id="authGateMsg">Inicia sessão com a tua conta Microsoft para aceder aos dados (SharePoint).</p>
+    <div id="authGateSpinner" class="spinner" style="display:none;"></div>
+    <div id="authGateProgress" style="display:none;">
+      <div class="progress-bar"><div class="progress-bar-fill" id="authGateProgressFill" style="width:0%;"></div></div>
+      <div class="muted" id="authGateProgressText" style="font-size:12.5px;"></div>
+    </div>
+    <button class="btn" id="btnLogin">Entrar com a Microsoft</button>
+    <button class="btn" id="btnStartImport" style="display:none;">Importar dados iniciais (12 093 faturas)</button>
+  </div>
+</div>
+
+<header>
+  <h1>Faturas de Fornecedores</h1>
+  <nav id="mainNav">
+    <button data-view="dashboard" class="active">Resumo</button>
+    <button data-view="fornecedores">Fornecedores</button>
+    <button data-view="faturas">Faturas</button>
+    <button data-view="relatorios">Relatórios</button>
+    <button data-view="backup">Conta</button>
+  </nav>
+  <div class="spacer"></div>
+  <div id="headerUserPill" class="pill" style="display:none;"></div>
+  <select id="entidadeGlobalFilter">
+    <option value="">Todas as empresas</option>
+  </select>
+</header>
+
+<main>
+
+  <!-- DASHBOARD -->
+  <div class="view active" id="view-dashboard">
+    <div class="grid-stats" id="dashStats"></div>
+    <div class="card">
+      <h2>Faturas pendentes mais urgentes</h2>
+      <div class="sub">As próximas a vencer, com base na data prevista de pagamento.</div>
+      <table>
+        <thead><tr><th>Fornecedor</th><th>Empresa</th><th>Nº Doc</th><th>A pagar até</th><th class="num">Valor</th></tr></thead>
+        <tbody id="dashUrgentBody"></tbody>
+      </table>
+      <div class="empty" id="dashUrgentEmpty" style="display:none;">Sem faturas pendentes 🎉</div>
+    </div>
+  </div>
+
+  <!-- FORNECEDORES -->
+  <div class="view" id="view-fornecedores">
+    <div id="fornecedoresList">
+      <div class="card">
+        <div class="toolbar">
+          <input type="search" id="fornecedorSearch" placeholder="Pesquisar fornecedor por nome ou NIPC...">
+          <button class="btn" id="btnNovoFornecedor">+ Novo fornecedor</button>
+        </div>
+        <div id="fornecedoresGrid"></div>
+        <div class="pagination" id="fornecedoresPagination"></div>
+      </div>
+    </div>
+    <div id="fornecedorDetail" style="display:none;"></div>
+  </div>
+
+  <!-- FATURAS -->
+  <div class="view" id="view-faturas">
+    <div class="card">
+      <div class="toolbar">
+        <input type="search" id="faturaSearch" placeholder="Pesquisar por fornecedor ou nº doc...">
+        <select id="faturaStatusFilter">
+          <option value="">Todos os estados</option>
+          <option value="Paga">Paga</option>
+          <option value="Pendente">Pendente</option>
+          <option value="A confirmar">A confirmar</option>
+          <option value="Disputa">Disputa</option>
+        </select>
+        <select id="faturaAnoFilter"><option value="">Todos os anos</option></select>
+        <button class="btn" id="btnNovaFatura">+ Nova fatura</button>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Fornecedor</th><th>Empresa</th><th>Tipo</th><th>Nº Doc</th><th>Mês</th>
+          <th class="num">Valor</th><th>Estado</th><th>Data pgto / prevista</th><th></th>
+        </tr></thead>
+        <tbody id="faturasBody"></tbody>
+      </table>
+      <div class="empty" id="faturasEmpty" style="display:none;">Sem faturas para os filtros escolhidos.</div>
+      <div class="pagination" id="faturasPagination"></div>
+    </div>
+  </div>
+
+  <!-- RELATORIOS -->
+  <div class="view" id="view-relatorios">
+    <div class="card">
+      <h2>Relatório de faturas</h2>
+      <div class="sub">Filtra por período (mês da fatura), empresa e estado.</div>
+      <div class="form-grid">
+        <div class="form-row"><label>De (mês)</label><input type="month" id="relDataDe"></div>
+        <div class="form-row"><label>Até (mês)</label><input type="month" id="relDataAte"></div>
+      </div>
+      <div class="form-row"><label>Empresa</label><select id="relEmpresaFilter"><option value="">Todas as empresas</option></select></div>
+      <div class="form-row">
+        <label>Estado</label>
+        <div id="relEstadoFilter" style="display:flex;flex-wrap:wrap;gap:12px;"></div>
+      </div>
+      <div class="grid-stats" style="margin-top:6px;">
+        <div class="card" style="padding:12px 16px;margin-bottom:0;">
+          <div class="sub" style="margin-bottom:2px;">Nº de faturas no período</div>
+          <div style="font-size:22px;font-weight:700;" id="relTotalCount">0</div>
+        </div>
+        <div class="card" style="padding:12px 16px;margin-bottom:0;">
+          <div class="sub" style="margin-bottom:2px;">Valor total no período</div>
+          <div style="font-size:22px;font-weight:700;" id="relTotalValor">€0,00</div>
+        </div>
+      </div>
+      <table style="margin-top:16px;">
+        <thead><tr><th>Fornecedor</th><th>Empresa</th><th>Nº Doc</th><th>Estado</th><th>Mês fatura</th><th class="num">Valor</th></tr></thead>
+        <tbody id="relResultBody"></tbody>
+        <tfoot><tr style="font-weight:700;border-top:2px solid var(--border);">
+          <td colspan="5">Total</td><td class="num" id="relResultTotal"></td>
+        </tr></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- CONTA / BACKUP -->
+  <div class="view" id="view-backup">
+    <div class="card">
+      <h2>Conta e dados</h2>
+      <div class="sub">Os dados desta aplicação vivem numa lista do SharePoint (site NM-SharePoint), não neste navegador. Qualquer alteração é gravada logo lá.</div>
+      <div id="accountStatus" style="margin-bottom:14px;font-size:13.5px;"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn secondary" id="btnRefreshData">Atualizar a partir do SharePoint</button>
+        <button class="btn secondary" id="btnResumeImport">Retomar importação de faturas em falta</button>
+        <button class="btn danger" id="btnLogout">Terminar sessão</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Cópia de segurança</h2>
+      <div class="sub">Descarrega uma cópia dos dados atuais (só para arquivo/backup — não é a fonte principal).</div>
+      <button class="btn secondary" id="btnExport">Exportar cópia (.json)</button>
+    </div>
+  </div>
+
+</main>
+
+<footer class="hint">Dados guardados na lista SharePoint "NM-SharePoint". Sessão iniciada com a tua conta Microsoft.</footer>
+
+<!-- MODAL: Fornecedor -->
+<div class="modal-overlay" id="modalFornecedor">
+  <div class="modal">
+    <h3 id="modalFornecedorTitle">Novo fornecedor</h3>
+    <input type="hidden" id="ffId">
+    <div class="form-row"><label>Nome *</label><input type="text" id="ffNome"></div>
+    <div class="form-grid">
+      <div class="form-row"><label>NIPC</label><input type="text" id="ffNipc"></div>
+      <div class="form-row"><label>Localidade</label><input type="text" id="ffLocalidade"></div>
+      <div class="form-row"><label>Morada</label><input type="text" id="ffMorada"></div>
+      <div class="form-row"><label>Código postal</label><input type="text" id="ffCodigoPostal"></div>
+      <div class="form-row"><label>IBAN</label><input type="text" id="ffIban"></div>
+      <div class="form-row"><label>Banco</label><input type="text" id="ffBanco"></div>
+      <div class="form-row"><label>Nome de contacto</label><input type="text" id="ffContacto"></div>
+      <div class="form-row"><label>E-mail</label><input type="text" id="ffEmail"></div>
+      <div class="form-row"><label>Telefone fixo</label><input type="text" id="ffTelefone"></div>
+      <div class="form-row"><label>Telemóvel</label><input type="text" id="ffTelemovel"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn danger" id="btnDeleteFornecedor" style="display:none;margin-right:auto;">Apagar</button>
+      <button class="btn secondary" onclick="closeModal('modalFornecedor')">Cancelar</button>
+      <button class="btn" id="btnSaveFornecedor">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Fatura -->
+<div class="modal-overlay" id="modalFatura">
+  <div class="modal">
+    <h3 id="modalFaturaTitle">Nova fatura</h3>
+    <input type="hidden" id="finId">
+    <div class="form-row">
+      <label>Fornecedor *</label>
+      <input type="text" id="finFornecedorSearch" placeholder="Escrever para pesquisar...">
+      <input type="hidden" id="finFornecedorId">
+      <div id="finFornecedorResults" style="border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:160px;overflow:auto;display:none;background:#fff;"></div>
+      <div id="finFornecedorSelected" class="pill" style="display:none;margin-top:6px;"></div>
+    </div>
+    <div class="form-grid">
+      <div class="form-row"><label>Empresa *</label>
+        <select id="finEntidade"></select>
+      </div>
+      <div class="form-row"><label>Tipo</label>
+        <select id="finTipo"><option>Factura</option><option>Nota Crédito</option><option>Recibo</option></select>
+      </div>
+      <div class="form-row"><label>Nº do documento</label><input type="text" id="finNumeroDoc"></div>
+      <div class="form-row"><label>Mês da fatura</label><input type="month" id="finMesFactura"></div>
+      <div class="form-row"><label>Valor (EUR) *</label><input type="number" step="0.01" id="finValor"></div>
+      <div class="form-row"><label>Estado *</label>
+        <select id="finStatus"><option>Pendente</option><option>Paga</option><option>A confirmar</option><option>Disputa</option></select>
+      </div>
+      <div class="form-row" style="grid-column:1/-1;"><label id="finDataLabel">Data prevista de pagamento</label><input type="date" id="finDataPgto"></div>
+      <div class="form-row" style="grid-column:1/-1;"><label>Notas</label><textarea id="finNotas" rows="2"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn danger" id="btnDeleteFatura" style="display:none;margin-right:auto;">Apagar</button>
+      <button class="btn secondary" onclick="closeModal('modalFatura')">Cancelar</button>
+      <button class="btn" id="btnSaveFatura">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Marcar paga -->
+<div class="modal-overlay" id="modalMarkPaid">
+  <div class="modal" style="max-width:340px;">
+    <h3>Marcar como paga</h3>
+    <div class="form-row">
+      <label>Data de pagamento</label>
+      <input type="date" id="mpData">
+    </div>
+    <div class="modal-actions">
+      <button class="btn secondary" onclick="closeModal('modalMarkPaid')">Cancelar</button>
+      <button class="btn" id="btnConfirmMarkPaid">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.7.1/lib/msal-browser.min.js" crossorigin="anonymous" onerror="this.onerror=null;document.write('&lt;script src=&quot;https://alcdn.msauth.net/browser/3.7.1/js/msal-browser.min.js&quot; crossorigin=&quot;anonymous&quot;&gt;&lt;\/script&gt;')"></script>
+<script>
+const SEED_DATA = {"suppliers": [], "invoices": [], "entidades": ["Ventask", "Crescerá", "Mind & Sparkle"], "tipos": ["Factura", "Nota Crédito", "Recibo"], "statuses": ["Paga", "Pendente", "A confirmar", "Disputa"]};
+</script>
+<script>
+/* ====================== CONFIG ====================== */
+const MSAL_CONFIG = {
+  auth: {
+    clientId: "42d6b713-5349-4541-88ed-78c2ca027c68",
+    authority: "https://login.microsoftonline.com/e314cb77-798f-4b48-bbd1-9203301fb030",
+    redirectUri: window.location.origin + window.location.pathname
+  },
+  cache: { cacheLocation: "localStorage", storeAuthStateInCookie: false }
+};
+const GRAPH_SCOPES = ["Sites.Manage.All", "Sites.ReadWrite.All", "User.Read"];
+const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
+const SITE_HOSTNAME = "ventaskpt.sharepoint.com";
+const SITE_PATH = "/sites/NM-SharePoint";
+const FORNECEDORES_LIST_NAME = "Fornecedores";
+const FATURAS_LIST_NAME = "Faturas";
+
+let msalInstance = null;
+let currentAccount = null;
+let state = { suppliers: [], invoices: [], entidades: SEED_DATA.entidades, tipos: SEED_DATA.tipos, statuses: SEED_DATA.statuses };
+let siteId = null, fornecedoresListId = null, faturasListId = null;
+
+/* ====================== UTIL ====================== */
+const fmtCurrency = v => new Intl.NumberFormat('pt-PT', {style:'currency', currency:'EUR'}).format(v||0);
+const fmtDate = iso => {
+  if(!iso) return '—';
+  const [y,m,d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+};
+const fmtMonth = iso => {
+  if(!iso) return '—';
+  const [y,m] = iso.split('-');
+  const names = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+  return `${names[parseInt(m,10)-1]} ${y}`;
+};
+const todayISO = () => new Date().toISOString().slice(0,10);
+function uid(prefix){ return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function escapeHtml(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(()=>t.classList.remove('show'), 2400);
+}
+function statusBadge(status){
+  const map = {"Paga":"paga","Pendente":"pendente","A confirmar":"confirmar","Disputa":"disputa"};
+  const cls = map[status] || "confirmar";
+  return `<span class="badge ${cls}">${escapeHtml(status)}</span>`;
+}
+function supplierById(id){ return state.suppliers.find(s=>s.id===id); }
+function setAuthGateMsg(msg){ document.getElementById('authGateMsg').textContent = msg; }
+function setAuthGateSpinner(on){ document.getElementById('authGateSpinner').style.display = on? 'block':'none'; }
+function setAuthGateProgress(pct, text){
+  const wrap = document.getElementById('authGateProgress');
+  wrap.style.display = pct===null ? 'none' : 'block';
+  if(pct!==null){
+    document.getElementById('authGateProgressFill').style.width = pct+'%';
+    document.getElementById('authGateProgressText').textContent = text||'';
+  }
+}
+
+/* ====================== MSAL / AUTH ====================== */
+async function initAuth(){
+  msalInstance = new msal.PublicClientApplication(MSAL_CONFIG);
+  await msalInstance.initialize();
+  const resp = await msalInstance.handleRedirectPromise().catch(e=>{ console.error(e); return null; });
+  const accounts = msalInstance.getAllAccounts();
+  if(resp && resp.account){
+    currentAccount = resp.account;
+    msalInstance.setActiveAccount(resp.account);
+  } else if(accounts.length){
+    currentAccount = accounts[0];
+    msalInstance.setActiveAccount(accounts[0]);
+  }
+  if(currentAccount){
+    await startApp();
+  } else {
+    document.getElementById('btnLogin').style.display = 'inline-block';
+  }
+}
+
+document.getElementById('btnLogin').addEventListener('click', async ()=>{
+  try{
+    document.getElementById('btnLogin').style.display = 'none';
+    setAuthGateSpinner(true);
+    setAuthGateMsg('A abrir o login da Microsoft...');
+    await msalInstance.loginRedirect({ scopes: GRAPH_SCOPES });
+    // A partir daqui o browser navega para a Microsoft; o regresso é tratado
+    // em handleRedirectPromise() dentro de initAuth() quando a página recarrega.
+  }catch(e){
+    console.error(e);
+    setAuthGateSpinner(false);
+    setAuthGateMsg('Não foi possível iniciar sessão: ' + (e.message||e));
+    document.getElementById('btnLogin').style.display = 'inline-block';
+  }
+});
+
+async function getGraphToken(){
+  const account = msalInstance.getActiveAccount();
+  if(!account) throw new Error('Sem sessão iniciada');
+  try{
+    const result = await msalInstance.acquireTokenSilent({ scopes: GRAPH_SCOPES, account });
+    return result.accessToken;
+  }catch(e){
+    const result = await msalInstance.acquireTokenPopup({ scopes: GRAPH_SCOPES });
+    return result.accessToken;
+  }
+}
+
+async function logout(){
+  await msalInstance.logoutPopup();
+  location.reload();
+}
+
+/* ====================== GRAPH HELPERS ====================== */
+async function graphFetch(pathOrUrl, options={}){
+  const token = await getGraphToken();
+  const url = pathOrUrl.startsWith('http') ? pathOrUrl : GRAPH_BASE + pathOrUrl;
+  const res = await fetch(url, {
+    ...options,
+    headers: { ...(options.headers||{}), Authorization: `Bearer ${token}`, 'Content-Type':'application/json' }
+  });
+  if(res.status === 429){
+    const retryAfter = parseFloat(res.headers.get('Retry-After')||'2');
+    await new Promise(r=>setTimeout(r, retryAfter*1000));
+    return graphFetch(pathOrUrl, options);
+  }
+  if(!res.ok){
+    const t = await res.text().catch(()=> '');
+    throw new Error(`Graph ${res.status}: ${t.slice(0,300)}`);
+  }
+  if(res.status === 204) return null;
+  return res.json();
+}
+
+async function graphBatch(requests){
+  // requests: [{id, method, url, body}] — up to 20 per call
+  const token = await getGraphToken();
+  const results = [];
+  for(let i=0;i<requests.length;i+=20){
+    const chunk = requests.slice(i, i+20);
+    const body = { requests: chunk.map(r=>({ id:r.id, method:r.method, url:r.url, body:r.body, headers: r.body? {'Content-Type':'application/json'}:undefined })) };
+    let res = await fetch(`${GRAPH_BASE}/$batch`, {
+      method:'POST',
+      headers: { Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+      body: JSON.stringify(body)
+    });
+    if(res.status === 429){
+      const retryAfter = parseFloat(res.headers.get('Retry-After')||'3');
+      await new Promise(r=>setTimeout(r, retryAfter*1000));
+      i -= 20; continue;
+    }
+    const data = await res.json();
+    results.push(...(data.responses||[]));
+  }
+  return results;
+}
+
+/* ====================== SITE / LIST DISCOVERY ====================== */
+async function getSiteId(){
+  const cached = localStorage.getItem('sp_site_id');
+  if(cached){ return cached; }
+  const data = await graphFetch(`/sites/${SITE_HOSTNAME}:${SITE_PATH}`);
+  localStorage.setItem('sp_site_id', data.id);
+  return data.id;
+}
+
+async function getListId(sName){
+  const cacheKey = 'sp_list_id_' + sName;
+  const cached = localStorage.getItem(cacheKey);
+  if(cached) return cached;
+  const data = await graphFetch(`/sites/${siteId}/lists?$filter=displayName eq '${sName}'`);
+  if(data.value && data.value.length){
+    localStorage.setItem(cacheKey, data.value[0].id);
+    return data.value[0].id;
+  }
+  return null;
+}
+
+async function createFaturasList(){
+  const body = {
+    displayName: FATURAS_LIST_NAME,
+    list: { template: "genericList" },
+    columns: [
+      { name:"FornecedorNome", text:{} },
+      { name:"FornecedorNIPC", text:{} },
+      { name:"FornecedorLegacyId", text:{} },
+      { name:"Entidade", text:{} },
+      { name:"Tipo", text:{} },
+      { name:"NumeroDoc", text:{} },
+      { name:"MesFactura", dateTime:{ displayAs:"default", format:"dateOnly" } },
+      { name:"Valor", number:{ decimalPlaces:"two" } },
+      { name:"Status", text:{} },
+      { name:"DataPagamento", dateTime:{ displayAs:"default", format:"dateOnly" } },
+      { name:"Notas", text:{ allowMultipleLines:true } }
+    ]
+  };
+  const data = await graphFetch(`/sites/${siteId}/lists`, { method:"POST", body: JSON.stringify(body) });
+  localStorage.setItem('sp_list_id_' + FATURAS_LIST_NAME, data.id);
+  return data.id;
+}
+
+/* ====================== FIELD MAPPING ====================== */
+function mapSpToSupplier(item){
+  const f = item.fields || {};
+  return {
+    id: 'sp-' + item.id, spId: item.id,
+    nome: f.field_1 || '', nipc: f.field_2!=null? String(f.field_2) : '',
+    morada: f.field_3 || '', numero_porta: f.field_4 || '',
+    codigo_postal: f.field_5!=null? String(f.field_5) : '',
+    localidade: f.field_6 || '', banco: f.field_7 || '', iban: f.field_8 || '', swift: f.field_9 || '',
+    nome_contacto: f.field_10 || '', telefone_fixo: f.field_11 || '', telemovel: f.field_12 || '',
+    email: f.field_13 || '', legacyId: f.LegacyId || ''
+  };
+}
+function supplierToSpFields(s){
+  return {
+    Title: s.nome, field_1: s.nome, field_2: s.nipc? Number(s.nipc) : null, field_3: s.morada||'', field_4: s.numero_porta||'',
+    field_5: s.codigo_postal? Number(s.codigo_postal) : null, field_6: s.localidade||'', field_7: s.banco||'', field_8: s.iban||'',
+    field_9: s.swift||'', field_10: s.nome_contacto||'', field_11: s.telefone_fixo? Number(s.telefone_fixo) : null,
+    field_12: s.telemovel? Number(s.telemovel) : null, field_13: s.email||''
+  };
+}
+function mapSpToInvoice(item){
+  const f = item.fields || {};
+  return {
+    id: 'sp-' + item.id, spId: item.id,
+    fornecedor_id: '', fornecedor_nome: f.FornecedorNome || '',
+    fornecedor_nipc: f.FornecedorNIPC || '',
+    entidade: f.Entidade || '', tipo: f.Tipo || '', numero_doc: f.NumeroDoc || '',
+    mes_factura: f.MesFactura ? f.MesFactura.slice(0,10) : null,
+    valor: typeof f.Valor === 'number' ? f.Valor : parseFloat(f.Valor||0) || 0,
+    status: f.Status || 'A confirmar',
+    data_pgto: f.DataPagamento ? f.DataPagamento.slice(0,10) : null,
+    notas: f.Notas || ''
+  };
+}
+function invoiceToSpFields(i){
+  const out = {
+    Title: i.numero_doc || i.fornecedor_nome || 'Fatura',
+    FornecedorNome: i.fornecedor_nome||'', FornecedorNIPC: i.fornecedor_nipc||'',
+    FornecedorLegacyId: i.fornecedor_id||'', Entidade: i.entidade||'', Tipo: i.tipo||'',
+    NumeroDoc: i.numero_doc||'', Valor: i.valor||0, Status: i.status||'',
+    Notas: i.notas||''
+  };
+  if(i.mes_factura) out.MesFactura = new Date(i.mes_factura+'T00:00:00Z').toISOString();
+  if(i.data_pgto) out.DataPagamento = new Date(i.data_pgto+'T00:00:00Z').toISOString();
+  return out;
+}
+
+/* ====================== READ ALL ITEMS (paginated) ====================== */
+async function fetchAllListItems(listId, selectFields){
+  let items = [];
+  let url = `/sites/${siteId}/lists/${listId}/items?$expand=fields($select=${selectFields})&$top=200`;
+  while(url){
+    const data = await graphFetch(url);
+    items = items.concat(data.value||[]);
+    url = data['@odata.nextLink'] || null;
+  }
+  return items;
+}
+
+/* ====================== BULK IMPORT (one-time) ====================== */
+async function runBulkImport(){
+  document.getElementById('btnStartImport').style.display = 'none';
+  setAuthGateSpinner(false);
+  setAuthGateMsg('A preparar a lista "Faturas"...');
+  if(!faturasListId){
+    faturasListId = await createFaturasList();
+  }
+  const all = SEED_DATA.invoices;
+  const supplierById_ = {};
+  SEED_DATA.suppliers.forEach(s=> supplierById_[s.id]=s);
+  const total = all.length;
+  setAuthGateProgress(0, `0 / ${total}`);
+  let done = 0;
+  const CHUNK = 20;
+  for(let i=0; i<all.length; i+=CHUNK){
+    const chunk = all.slice(i, i+CHUNK);
+    const requests = chunk.map((inv, idx)=>{
+      const sup = supplierById_[inv.fornecedor_id] || {};
+      const fields = invoiceToSpFields({
+        fornecedor_nome: inv.fornecedor_nome, fornecedor_nipc: sup.nipc||'',
+        fornecedor_id: inv.fornecedor_id||'', entidade: inv.entidade, tipo: inv.tipo,
+        numero_doc: inv.numero_doc, mes_factura: inv.mes_factura, valor: inv.valor,
+        status: inv.status, data_pgto: inv.data_pgto, notas: inv.notas
+      });
+      return {
+        id: String(idx), method:"POST",
+        url: `/sites/${siteId}/lists/${faturasListId}/items`,
+        body: { fields }
+      };
+    });
     await graphBatch(requests);
     done += chunk.length;
     const pct = Math.round(done/total*100);
@@ -1434,7 +2061,7 @@ function initAfterStateChange(){
   populateAnoFilter();
   renderDashboard();
   showFornecedorList();
-populateRelatorioFilterspopulateRelatorioFilters  renderFornecedoresGrid();
+  renderFornecedoresGrid();
   renderFaturasTab();
   renderRelatorios();
 }
