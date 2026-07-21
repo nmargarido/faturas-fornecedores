@@ -141,13 +141,13 @@
   <div class="view active" id="view-dashboard">
     <div class="grid-stats" id="dashStats"></div>
     <div class="card">
-      <h2>Faturas pendentes mais urgentes</h2>
-      <div class="sub">As próximas a vencer, com base na data prevista de pagamento.</div>
+      <h2>Últimas 12 faturas inseridas</h2>
+      <div class="sub">As faturas mais recentemente adicionadas ao sistema.</div>
       <table>
-        <thead><tr><th>Fornecedor</th><th>Empresa</th><th>Nº Doc</th><th>A pagar até</th><th class="num">Valor</th></tr></thead>
-        <tbody id="dashUrgentBody"></tbody>
+        <thead><tr><th>Fornecedor</th><th>Empresa</th><th>Nº Doc</th><th>Estado</th><th class="num">Valor</th></tr></thead>
+                <tbody id="dashUrgentBody"></tbody>
       </table>
-      <div class="empty" id="dashUrgentEmpty" style="display:none;">Sem faturas pendentes 🎉</div>
+      <div class="empty" id="dashUrgentEmpty" style="display:none;">Sem faturas registadas.</div>
     </div>
   </div>
 
@@ -829,38 +829,28 @@ function currentEntidadeFilter(){ return document.getElementById('entidadeGlobal
 function renderDashboard(){
   const ent = currentEntidadeFilter();
   const invs = state.invoices.filter(i => !ent || i.entidade===ent);
-  const paga = invs.filter(i=>i.status==='Paga');
   const pendente = invs.filter(i=>i.status==='Pendente');
-  const confirmar = invs.filter(i=>i.status==='A confirmar');
-  const thisMonth = todayISO().slice(0,7);
-  const pagoEsteMes = paga.filter(i => (i.data_pgto||'').slice(0,7)===thisMonth).reduce((a,i)=>a+i.valor,0);
-  const totalPendente = pendente.reduce((a,i)=>a+i.valor,0);
+    const totalPendente = pendente.reduce((a,i)=>a+i.valor,0);
   const overdue = pendente.filter(i => i.data_pgto && i.data_pgto < todayISO());
   const totalOverdue = overdue.reduce((a,i)=>a+i.valor,0);
-  const pagaSemData = paga.filter(i=>!i.data_pgto).length;
-
+  
   const stats = [
-    {label:"Pago este mês", value: fmtCurrency(pagoEsteMes), cls:"green"},
-    {label:"Total pendente", value: fmtCurrency(totalPendente), cls:"amber"},
+        {label:"Total pendente", value: fmtCurrency(totalPendente), cls:"amber"},
     {label:"Vencidas (em atraso)", value: fmtCurrency(totalOverdue), cls: overdue.length? "red":"green"},
-    {label:"Faturas a confirmar", value: confirmar.length, cls:""},
-    {label:"Pagas sem data registada", value: pagaSemData, cls: pagaSemData? "amber":""},
-    {label:"Fornecedores", value: state.suppliers.length, cls:""},
-  ];
+    ];
   document.getElementById('dashStats').innerHTML = stats.map(s=>`
     <div class="stat"><div class="label">${s.label}</div><div class="value ${s.cls}">${s.value}</div></div>
   `).join('');
 
-  const urgent = pendente.slice().sort((a,b)=>(a.data_pgto||'9999').localeCompare(b.data_pgto||'9999')).slice(0,10);
-  const body = document.getElementById('dashUrgentBody');
-  document.getElementById('dashUrgentEmpty').style.display = urgent.length ? 'none':'block';
-  body.innerHTML = urgent.map(i=>{
-    const isOverdue = i.data_pgto && i.data_pgto < todayISO();
-    return `<tr>
+    const recent = invs.slice().sort((a,b)=>(b.spId||0)-(a.spId||0)).slice(0,12);
+      const body = document.getElementById('dashUrgentBody');
+  document.getElementById('dashUrgentEmpty').style.display = recent.length ? 'none':'block';
+  body.innerHTML = recent.map(i=>{
+        return `<tr>
       <td>${escapeHtml(i.fornecedor_nome)}</td>
       <td><span class="pill">${escapeHtml(i.entidade||'—')}</span></td>
       <td>${escapeHtml(i.numero_doc||'—')}</td>
-      <td>${isOverdue?'<span class="badge overdue">'+fmtDate(i.data_pgto)+'</span>':fmtDate(i.data_pgto)}</td>
+      <td>${escapeHtml(i.status||'—')}</td>
       <td class="num">${fmtCurrency(i.valor)}</td>
     </tr>`;
   }).join('');
