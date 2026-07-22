@@ -1896,14 +1896,16 @@ function renderFaturasEmitidasDashStats(){
   const totalOverdue = overdue.reduce((a,i)=>a+i.valor,0);
   const pagas = invs.filter(i=>i.status==='Paga');
   const totalRecebido = pagas.reduce((a,i)=>a+i.valor,0);
+  const totalEmitido = invs.reduce((a,i)=>a+i.valor,0);
 
   const stats = [
-    {label:"Total a receber", value: fmtCurrency(totalPendente), cls:"amber"},
-    {label:"Vencidas (em atraso)", value: fmtCurrency(totalOverdue), cls: overdue.length? "red":"green"},
-    {label:"Total recebido", value: fmtCurrency(totalRecebido), cls:"green"},
+    {label:"Total a receber", value: fmtCurrency(totalPendente), cls:"amber", n: pendente.length},
+    {label:"Vencidas (em atraso)", value: fmtCurrency(totalOverdue), cls: overdue.length? "red":"green", n: overdue.length},
+    {label:"Total recebido", value: fmtCurrency(totalRecebido), cls:"green", n: pagas.length},
+    {label:"Total emitido", value: fmtCurrency(totalEmitido), cls:"", n: invs.length},
   ];
   document.getElementById('feDashStats').innerHTML = stats.map(s=>`
-    <div class="stat"><div class="label">${s.label}</div><div class="value ${s.cls}">${s.value}</div></div>
+    <div class="stat"><div class="label">${s.label}</div><div class="value ${s.cls}">${s.value}</div><div class="muted" style="font-size:12px;margin-top:2px;">${s.n} fatura${s.n===1?'':'s'}</div></div>
   `).join('');
 }
 
