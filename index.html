@@ -223,6 +223,13 @@
           <option value="Vencida">Vencida</option>
         </select>
         <select id="feAnoFilter"><option value="">Todos os anos</option></select>
+        <select id="feMesFilter">
+          <option value="">Todos os meses</option>
+          <option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option>
+          <option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option>
+          <option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option>
+          <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+        </select>
         <button class="btn" id="btnNovaFaturaEmitida">+ Nova fatura emitida</button>
       </div>
       <table>
@@ -1889,11 +1896,13 @@ function renderFaturasEmitidasTab(){
   const q = (document.getElementById('feSearch').value||'').toLowerCase().trim();
   const statusF = document.getElementById('feStatusFilter').value;
   const anoF = document.getElementById('feAnoFilter').value;
+  const mesF = document.getElementById('feMesFilter').value;
 
   let list = state.issuedInvoices.filter(i=>{
     if(ent && i.entidade!==ent) return false;
     if(statusF && i.status!==statusF) return false;
     if(anoF && !(i.mes_factura||'').startsWith(anoF)) return false;
+    if(mesF && (i.mes_factura||'').slice(5,7)!==mesF) return false;
     if(q && !(i.cliente_nome.toLowerCase().includes(q) || (i.numero_doc||'').toLowerCase().includes(q))) return false;
     return true;
   });
@@ -2062,6 +2071,7 @@ document.getElementById('clienteSearch').addEventListener('input', ()=>{clientes
 document.getElementById('feSearch').addEventListener('input', ()=>{fePage=0; renderFaturasEmitidasTab();});
 document.getElementById('feStatusFilter').addEventListener('change', ()=>{fePage=0; renderFaturasEmitidasTab();});
 document.getElementById('feAnoFilter').addEventListener('change', ()=>{fePage=0; renderFaturasEmitidasTab();});
+document.getElementById('feMesFilter').addEventListener('change', ()=>{fePage=0; renderFaturasEmitidasTab();});
 
 /* ====================== RELATORIOS ====================== */
 function populateRelatorioFilters(){
