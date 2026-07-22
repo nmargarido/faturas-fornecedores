@@ -47,6 +47,14 @@
   tr.clickable:hover td{background:var(--gray-bg);}
   .num{text-align:right;font-variant-numeric:tabular-nums;}
   .badge{display:inline-block;padding:3px 9px;border-radius:99px;font-size:11.5px;font-weight:700;white-space:nowrap;}
+  .msel{position:relative;display:inline-block;}
+  .msel-btn{background:#fff;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px;cursor:pointer;color:var(--text);white-space:nowrap;}
+  .msel-btn:hover{background:var(--gray-bg);}
+  .msel-caret{opacity:.6;font-size:11px;}
+  .msel-panel{position:absolute;top:calc(100% + 4px);left:0;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow);padding:6px;z-index:60;max-height:260px;overflow:auto;min-width:160px;}
+  .msel-opt{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;font-size:13.5px;cursor:pointer;white-space:nowrap;}
+  .msel-opt:hover{background:var(--gray-bg);}
+  .msel-opt input{width:auto;}
   .badge.paga{background:var(--green-bg);color:var(--green);}
   .badge.pendente{background:var(--amber-bg);color:var(--amber);}
   .badge.confirmar{background:var(--gray-bg);color:var(--muted);}
@@ -222,14 +230,8 @@
           <option value="Paga">Paga</option>
           <option value="Vencida">Vencida</option>
         </select>
-        <select id="feAnoFilter"><option value="">Todos os anos</option></select>
-        <select id="feMesFilter">
-          <option value="">Todos os meses</option>
-          <option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option>
-          <option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option>
-          <option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option>
-          <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
-        </select>
+        <span id="feAnoMselWrap"></span>
+        <span id="feMesMselWrap"></span>
         <button class="btn" id="btnNovaFaturaEmitida">+ Nova fatura emitida</button>
       </div>
       <table>
@@ -1350,13 +1352,13 @@ function renderClientesGrid(){
   `;
 }
 
-let cdState = { clientId: null, tab: 'Pendente', page: 0, ano: '', mes: '' };
+let cdState = { clientId: null, tab: 'Pendente', page: 0, anos: new Set(), meses: new Set() };
 const CD_PAGE_SIZE = 50;
 
 function openClienteDetail(id){
   const s = clientById(id);
   if(!s) return;
-  if(cdState.clientId !== id) cdState = { clientId: id, tab: 'Pendente', page: 0 };
+  if(cdState.clientId !== id) cdState = { clientId: id, tab: 'Pendente', page: 0, anos: new Set(), meses: new Set() };
   document.getElementById('clientesList').style.display='none';
   document.getElementById('clienteDetail').style.display='block';
   renderClienteDetailShell();
@@ -1387,10 +1389,10 @@ function renderClienteDetailShell(){
   const detail = document.getElementById('clienteDetail');
   const invsAll = state.issuedInvoices.filter(i=>i.cliente_id===s.id);
   const anos = Array.from(new Set(invsAll.map(i=>(i.mes_factura||'').slice(0,4)).filter(Boolean))).sort().reverse();
-  if(cdState.ano && !anos.includes(cdState.ano)) cdState.ano = '';
+  for(const a of Array.from(cdState.anos)) if(!anos.includes(a)) cdState.anos.delete(a);
   const invs = invsAll.filter(i=>{
-    if(cdState.ano && !(i.mes_factura||'').startsWith(cdState.ano)) return false;
-    if(cdState.mes && (i.mes_factura||'').slice(5,7)!==cdState.mes) return false;
+    if(cdState.anos.size && !cdState.anos.has((i.mes_factura||'').slice(0,4))) return false;
+    if(cdState.meses.size && !cdState.meses.has((i.mes_factura||'').slice(5,7))) return false;
     return true;
   });
   const pagas = invs.filter(i=>i.status==='Paga');
@@ -1411,25 +1413,8 @@ function renderClienteDetailShell(){
           <div class="sub">${s.nipc? 'NIPC '+escapeHtml(s.nipc):'Sem NIPC registado'}</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
-          <select id="cdAnoFilter" onchange="setCdAno(this.value)">
-            <option value="">Todos os anos</option>
-            ${anos.map(a=>`<option value="${a}" ${cdState.ano===a?'selected':''}>${a}</option>`).join('')}
-          </select>
-          <select id="cdMesFilter" onchange="setCdMes(this.value)">
-            <option value="">Todos os meses</option>
-            <option value="01" ${cdState.mes==='01'?'selected':''}>Janeiro</option>
-            <option value="02" ${cdState.mes==='02'?'selected':''}>Fevereiro</option>
-            <option value="03" ${cdState.mes==='03'?'selected':''}>Março</option>
-            <option value="04" ${cdState.mes==='04'?'selected':''}>Abril</option>
-            <option value="05" ${cdState.mes==='05'?'selected':''}>Maio</option>
-            <option value="06" ${cdState.mes==='06'?'selected':''}>Junho</option>
-            <option value="07" ${cdState.mes==='07'?'selected':''}>Julho</option>
-            <option value="08" ${cdState.mes==='08'?'selected':''}>Agosto</option>
-            <option value="09" ${cdState.mes==='09'?'selected':''}>Setembro</option>
-            <option value="10" ${cdState.mes==='10'?'selected':''}>Outubro</option>
-            <option value="11" ${cdState.mes==='11'?'selected':''}>Novembro</option>
-            <option value="12" ${cdState.mes==='12'?'selected':''}>Dezembro</option>
-          </select>
+          <span id="cdAnoMselWrap"></span>
+          <span id="cdMesMselWrap"></span>
           <button class="btn secondary small" onclick="editCliente('${s.id}')">Editar</button>
           <button class="btn small" onclick="openFaturaEmitidaModal(null, '${s.id}')">+ Nova fatura</button>
         </div>
@@ -1468,20 +1453,20 @@ function renderClienteDetailShell(){
       <div class="pagination" id="cdPagination"></div>
     </div>
   `;
+  document.getElementById('cdAnoMselWrap').innerHTML = mselHtml('cdAno', anos.map(a=>({value:a,label:a})), 'Todos os anos');
+  document.getElementById('cdMesMselWrap').innerHTML = mselHtml('cdMes', MESES_OPTS, 'Todos os meses');
   renderCdInvoicesTable();
 }
 
 function setCdTab(tab){ cdState.tab = tab; cdState.page = 0; renderClienteDetailShell(); }
-function setCdAno(ano){ cdState.ano = ano; cdState.page = 0; renderClienteDetailShell(); }
-function setCdMes(mes){ cdState.mes = mes; cdState.page = 0; renderClienteDetailShell(); }
 
 function renderCdInvoicesTable(){
   const s = clientById(cdState.clientId);
   if(!s) return;
   const invs0 = state.issuedInvoices.filter(i=>i.cliente_id===s.id);
   const invs = invs0.filter(i=>{
-    if(cdState.ano && !(i.mes_factura||'').startsWith(cdState.ano)) return false;
-    if(cdState.mes && (i.mes_factura||'').slice(5,7)!==cdState.mes) return false;
+    if(cdState.anos.size && !cdState.anos.has((i.mes_factura||'').slice(0,4))) return false;
+    if(cdState.meses.size && !cdState.meses.has((i.mes_factura||'').slice(5,7))) return false;
     return true;
   });
   let list;
@@ -1872,20 +1857,76 @@ document.getElementById('btnDeleteFatura').addEventListener('click', async ()=>{
   }
 });
 
+/* ====================== MULTI-SELECT (ano/mês) ====================== */
+const MESES_OPTS = [
+  {value:'01',label:'Janeiro'},{value:'02',label:'Fevereiro'},{value:'03',label:'Março'},
+  {value:'04',label:'Abril'},{value:'05',label:'Maio'},{value:'06',label:'Junho'},
+  {value:'07',label:'Julho'},{value:'08',label:'Agosto'},{value:'09',label:'Setembro'},
+  {value:'10',label:'Outubro'},{value:'11',label:'Novembro'},{value:'12',label:'Dezembro'}
+];
+const mselOpen = {};
+const mselRegistry = {};
+function registerMsel(key, getSet, onChange){ mselRegistry[key] = { getSet, onChange }; }
+function mselLabel(key, options, allLabel){
+  const set = mselRegistry[key].getSet();
+  if(set.size===0) return allLabel;
+  if(set.size===1){ const v=[...set][0]; const o=options.find(o=>o.value===v); return o?o.label:v; }
+  return set.size + ' selecionados';
+}
+function mselHtml(key, options, allLabel){
+  const set = mselRegistry[key].getSet();
+  return `<div class="msel">
+    <button type="button" class="msel-btn" onclick="toggleMselPanel('${key}')">${mselLabel(key,options,allLabel)} <span class="msel-caret">▾</span></button>
+    <div class="msel-panel" id="mselPanel_${key}" style="display:${mselOpen[key]?'block':'none'};">
+      ${options.map(o=>`<label class="msel-opt"><input type="checkbox" value="${o.value}" ${set.has(o.value)?'checked':''} onchange="mselToggle('${key}','${o.value}',this.checked)"> ${escapeHtml(o.label)}</label>`).join('')}
+    </div>
+  </div>`;
+}
+function toggleMselPanel(key){
+  const wasOpen = !!mselOpen[key];
+  Object.keys(mselOpen).forEach(k=>mselOpen[k]=false);
+  mselOpen[key] = !wasOpen;
+  document.querySelectorAll('.msel-panel').forEach(p=>{ p.style.display = (p.id==='mselPanel_'+key && mselOpen[key]) ? 'block' : 'none'; });
+}
+function mselToggle(key, value, checked){
+  const set = mselRegistry[key].getSet();
+  if(checked) set.add(value); else set.delete(value);
+  mselOpen[key] = true;
+  mselRegistry[key].onChange();
+}
+document.addEventListener('click', function(e){
+  if(!e.target.closest('.msel')){
+    let changed = false;
+    Object.keys(mselOpen).forEach(k=>{ if(mselOpen[k]){ mselOpen[k]=false; changed=true; } });
+    if(changed) document.querySelectorAll('.msel-panel').forEach(p=>p.style.display='none');
+  }
+});
+
 /* ====================== FATURAS EMITIDAS ====================== */
 let fePage = 0;
 const FE_PAGE_SIZE = 50;
+let feAnoSel = new Set();
+let feMesSel = new Set();
+registerMsel('feAno', ()=>feAnoSel, ()=>{ fePage=0; renderFeFilters(); renderFaturasEmitidasTab(); });
+registerMsel('feMes', ()=>feMesSel, ()=>{ fePage=0; renderFeFilters(); renderFaturasEmitidasTab(); });
+registerMsel('cdAno', ()=>cdState.anos, ()=>{ cdState.page=0; renderClienteDetailShell(); });
+registerMsel('cdMes', ()=>cdState.meses, ()=>{ cdState.page=0; renderClienteDetailShell(); });
+
+function renderFeFilters(){
+  const anos = Array.from(new Set(state.issuedInvoices.map(i=>(i.mes_factura||'').slice(0,4)).filter(Boolean))).sort().reverse();
+  for(const a of Array.from(feAnoSel)) if(!anos.includes(a)) feAnoSel.delete(a);
+  document.getElementById('feAnoMselWrap').innerHTML = mselHtml('feAno', anos.map(a=>({value:a,label:a})), 'Todos os anos');
+  document.getElementById('feMesMselWrap').innerHTML = mselHtml('feMes', MESES_OPTS, 'Todos os meses');
+}
 
 function renderFaturasEmitidasDashStats(){
   const ent = currentEntidadeFilter();
-  const anoF = document.getElementById('feAnoFilter').value;
-  const mesF = document.getElementById('feMesFilter').value;
   const statusF = document.getElementById('feStatusFilter').value;
   const q = (document.getElementById('feSearch').value||'').toLowerCase().trim();
   const invs = state.issuedInvoices.filter(i=>{
     if(ent && i.entidade!==ent) return false;
-    if(anoF && !(i.mes_factura||'').startsWith(anoF)) return false;
-    if(mesF && (i.mes_factura||'').slice(5,7)!==mesF) return false;
+    if(feAnoSel.size && !feAnoSel.has((i.mes_factura||'').slice(0,4))) return false;
+    if(feMesSel.size && !feMesSel.has((i.mes_factura||'').slice(5,7))) return false;
     if(statusF && i.status!==statusF) return false;
     if(q && !(i.cliente_nome.toLowerCase().includes(q) || (i.numero_doc||'').toLowerCase().includes(q))) return false;
     return true;
@@ -1932,14 +1973,12 @@ function renderFaturasEmitidasTab(){
   const ent = currentEntidadeFilter();
   const q = (document.getElementById('feSearch').value||'').toLowerCase().trim();
   const statusF = document.getElementById('feStatusFilter').value;
-  const anoF = document.getElementById('feAnoFilter').value;
-  const mesF = document.getElementById('feMesFilter').value;
 
   let list = state.issuedInvoices.filter(i=>{
     if(ent && i.entidade!==ent) return false;
     if(statusF && i.status!==statusF) return false;
-    if(anoF && !(i.mes_factura||'').startsWith(anoF)) return false;
-    if(mesF && (i.mes_factura||'').slice(5,7)!==mesF) return false;
+    if(feAnoSel.size && !feAnoSel.has((i.mes_factura||'').slice(0,4))) return false;
+    if(feMesSel.size && !feMesSel.has((i.mes_factura||'').slice(5,7))) return false;
     if(q && !(i.cliente_nome.toLowerCase().includes(q) || (i.numero_doc||'').toLowerCase().includes(q))) return false;
     return true;
   });
@@ -1958,13 +1997,6 @@ function renderFaturasEmitidasTab(){
     <span>Página ${fePage+1} / ${pages}</span>
     <button ${fePage>=pages-1?'disabled':''} onclick="fePage++;renderFaturasEmitidasTab()">›</button>
   `;
-}
-
-function populateFeAnoFilter(){
-  const anos = new Set(state.issuedInvoices.map(i=>(i.mes_factura||'').slice(0,4)).filter(Boolean));
-  const sel = document.getElementById('feAnoFilter');
-  const sorted = Array.from(anos).sort().reverse();
-  sel.innerHTML = '<option value="">Todos os anos</option>' + sorted.map(a=>`<option value="${a}">${a}</option>`).join('');
 }
 
 document.getElementById('btnNovaFaturaEmitida').addEventListener('click', ()=>openFaturaEmitidaModal(null,null));
@@ -2069,7 +2101,7 @@ document.getElementById('btnSaveFaturaEmitida').addEventListener('click', async 
       showToast('Fatura criada');
     }
     closeModal('modalFaturaEmitida');
-    populateFeAnoFilter();
+    renderFeFilters();
     renderFaturasEmitidasTab(); renderClientesGrid();
     if(document.getElementById('clienteDetail').style.display!=='none') openClienteDetail(finalClienteId);
   }catch(e){
@@ -2092,7 +2124,7 @@ document.getElementById('btnDeleteFaturaEmitida').addEventListener('click', asyn
     await graphFetch(`/sites/${siteId}/lists/${faturasEmitidasListId}/items/${inv.spId}`, { method:'DELETE' });
     state.issuedInvoices = state.issuedInvoices.filter(i=>i.id!==id);
     closeModal('modalFaturaEmitida');
-    populateFeAnoFilter();
+    renderFeFilters();
     renderFaturasEmitidasTab(); renderClientesGrid();
     if(document.getElementById('clienteDetail').style.display!=='none') openClienteDetail(inv.cliente_id);
     showToast('Fatura apagada');
@@ -2107,8 +2139,6 @@ document.getElementById('btnDeleteFaturaEmitida').addEventListener('click', asyn
 document.getElementById('clienteSearch').addEventListener('input', ()=>{clientesPage=0; renderClientesGrid();});
 document.getElementById('feSearch').addEventListener('input', ()=>{fePage=0; renderFaturasEmitidasTab();});
 document.getElementById('feStatusFilter').addEventListener('change', ()=>{fePage=0; renderFaturasEmitidasTab();});
-document.getElementById('feAnoFilter').addEventListener('change', ()=>{fePage=0; renderFaturasEmitidasTab();});
-document.getElementById('feMesFilter').addEventListener('change', ()=>{fePage=0; renderFaturasEmitidasTab();});
 
 /* ====================== RELATORIOS ====================== */
 function populateRelatorioFilters(){
@@ -2234,7 +2264,7 @@ function populateEntidadeFilters(){
 function initAfterStateChange(){
   fornecedoresPage = 0; faturasPage = 0; clientesPage = 0; fePage = 0;
   populateAnoFilter();
-  populateFeAnoFilter();
+  renderFeFilters();
   renderDashboard();
   showFornecedorList();
   renderFornecedoresGrid();
