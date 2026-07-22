@@ -746,8 +746,8 @@ function mapSpToFaturaEmitida(item){
   const f = item.fields || {};
   return {
     id: 'sp-' + item.id, spId: item.id,
-    cliente_id: '', cliente_nome: f.ClienteNome || '',
-    cliente_nipc: f.ClienteNIPC || '',
+    cliente_id: '', cliente_nome: f.FornecedorNome || '',
+    cliente_nipc: f.FornecedorNIPC || '',
     entidade: f.Entidade || '', tipo: f.Tipo || '', numero_doc: f.NumeroDoc || '',
     mes_factura: f.MesFactura ? f.MesFactura.slice(0,10) : null,
     data_vencimento: f.DataVencimento ? f.DataVencimento.slice(0,10) : null,
@@ -760,8 +760,8 @@ function mapSpToFaturaEmitida(item){
 function faturaEmitidaToSpFields(i){
   const out = {
     Title: i.numero_doc || i.cliente_nome || 'Fatura',
-    ClienteNome: i.cliente_nome||'', ClienteNIPC: i.cliente_nipc||'',
-    ClienteLegacyId: i.cliente_id||'', Entidade: i.entidade||'', Tipo: i.tipo||'',
+    FornecedorNome: i.cliente_nome||'', FornecedorNIPC: i.cliente_nipc||'',
+    FornecedorLegacyId: i.cliente_id||'', Entidade: i.entidade||'', Tipo: i.tipo||'',
     NumeroDoc: i.numero_doc||'', Valor: i.valor||0, Status: i.status||'',
     Notas: i.notas||''
   };
@@ -932,7 +932,7 @@ async function startApp(){
       state.clients = spClients.map(mapSpToClient);
     }
     if(faturasEmitidasListId){
-      const spFe = await fetchAllListItems(faturasEmitidasListId, 'ClienteNome,ClienteNIPC,ClienteLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,DataVencimento,Valor,Status,DataPagamento,Notas');
+      const spFe = await fetchAllListItems(faturasEmitidasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,DataVencimento,Valor,Status,DataPagamento,Notas');
       mapIssuedInvoicesWithClienteIds(spFe);
     }
 
@@ -987,7 +987,7 @@ function mapIssuedInvoicesWithClienteIds(spItems){
   state.issuedInvoices = spItems.map(item=>{
     const inv = mapSpToFaturaEmitida(item);
     const f = item.fields||{};
-    inv.cliente_id = byLegacy[f.ClienteLegacyId] || byName[f.ClienteNome] || '';
+    inv.cliente_id = byLegacy[f.FornecedorLegacyId] || byName[f.FornecedorNome] || '';
     return inv;
   });
 }
