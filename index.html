@@ -634,10 +634,20 @@ async function getListId(sName){
       localStorage.removeItem(cacheKey);
     }
   }
-  const data = await graphFetch(`/sites/${siteId}/lists?$filter=displayName eq '${sName}'`);
-  if(data.value && data.value.length){
-    localStorage.setItem(cacheKey, data.value[0].id);
-    return data.value[0].id;
+  // Busca todas as listas do site e compara localmente (mais fiável do que $filter,
+  // que pode atrasar-se a indexar listas criadas há pouco tempo).
+  let all = [];
+  let url = `/sites/${siteId}/lists?$top=200&$select=id,displayName,name`;
+  while(url){
+    const data = await graphFetch(url);
+    all = all.concat(data.value || []);
+    url = data['@odata.nextLink'] ? data['@odata.nextLink'].replace('https://graph.microsoft.com/v1.0','') : null;
+  }
+  const target = sName.trim().toLowerCase();
+  const match = all.find(l => (l.displayName||'').trim().toLowerCase()===target || (l.name||'').trim().toLowerCase()===target);
+  if(match){
+    localStorage.setItem(cacheKey, match.id);
+    return match.id;
   }
   return null;
 }
