@@ -125,6 +125,8 @@
     <button data-view="dashboard" class="active">Resumo</button>
     <button data-view="fornecedores">Fornecedores</button>
     <button data-view="faturas">Faturas</button>
+    <button data-view="clientes">Clientes</button>
+    <button data-view="faturasEmitidas">Faturas Emitidas</button>
     <button data-view="relatorios">Relatórios</button>
     <button data-view="backup">Conta</button>
   </nav>
@@ -190,6 +192,48 @@
       </table>
       <div class="empty" id="faturasEmpty" style="display:none;">Sem faturas para os filtros escolhidos.</div>
       <div class="pagination" id="faturasPagination"></div>
+    </div>
+  </div>
+
+  <!-- CLIENTES -->
+  <div class="view" id="view-clientes">
+    <div id="clientesList">
+      <div class="card">
+        <div class="toolbar">
+          <input type="search" id="clienteSearch" placeholder="Pesquisar cliente por nome ou NIPC...">
+          <button class="btn" id="btnNovoCliente">+ Novo cliente</button>
+        </div>
+        <div id="clientesGrid"></div>
+        <div class="pagination" id="clientesPagination"></div>
+      </div>
+    </div>
+    <div id="clienteDetail" style="display:none;"></div>
+  </div>
+
+  <!-- FATURAS EMITIDAS -->
+  <div class="view" id="view-faturasEmitidas">
+    <div class="grid-stats" id="feDashStats"></div>
+    <div class="card">
+      <div class="toolbar">
+        <input type="search" id="feSearch" placeholder="Pesquisar por cliente ou nº doc...">
+        <select id="feStatusFilter">
+          <option value="">Todos os estados</option>
+          <option value="Pendente">Pendente</option>
+          <option value="Paga">Paga</option>
+          <option value="Vencida">Vencida</option>
+        </select>
+        <select id="feAnoFilter"><option value="">Todos os anos</option></select>
+        <button class="btn" id="btnNovaFaturaEmitida">+ Nova fatura emitida</button>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Cliente</th><th>Empresa</th><th>Tipo</th><th>Nº Doc</th><th>Mês</th>
+          <th class="num">Valor</th><th>Estado</th><th>Data vencimento</th><th></th>
+        </tr></thead>
+        <tbody id="feBody"></tbody>
+      </table>
+      <div class="empty" id="feEmpty" style="display:none;">Sem faturas emitidas para os filtros escolhidos.</div>
+      <div class="pagination" id="fePagination"></div>
     </div>
   </div>
 
@@ -327,7 +371,7 @@
 <!-- MODAL: Marcar paga -->
 <div class="modal-overlay" id="modalMarkPaid">
   <div class="modal" style="max-width:340px;">
-    <h3>Marcar como paga</h3>
+    <h3 id="modalMarkPaidTitle">Marcar como paga</h3>
     <div class="form-row">
       <label>Data de pagamento</label>
       <input type="date" id="mpData">
@@ -335,6 +379,69 @@
     <div class="modal-actions">
       <button class="btn secondary" onclick="closeModal('modalMarkPaid')">Cancelar</button>
       <button class="btn" id="btnConfirmMarkPaid">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Cliente -->
+<div class="modal-overlay" id="modalCliente">
+  <div class="modal">
+    <h3 id="modalClienteTitle">Novo cliente</h3>
+    <input type="hidden" id="cfId">
+    <div class="form-row"><label>Nome *</label><input type="text" id="cfNome"></div>
+    <div class="form-grid">
+      <div class="form-row"><label>NIPC</label><input type="text" id="cfNipc"></div>
+      <div class="form-row"><label>Localidade</label><input type="text" id="cfLocalidade"></div>
+      <div class="form-row"><label>Morada</label><input type="text" id="cfMorada"></div>
+      <div class="form-row"><label>Código postal</label><input type="text" id="cfCodigoPostal"></div>
+      <div class="form-row"><label>IBAN</label><input type="text" id="cfIban"></div>
+      <div class="form-row"><label>Banco</label><input type="text" id="cfBanco"></div>
+      <div class="form-row"><label>Nome de contacto</label><input type="text" id="cfContacto"></div>
+      <div class="form-row"><label>E-mail</label><input type="text" id="cfEmail"></div>
+      <div class="form-row"><label>Telefone fixo</label><input type="text" id="cfTelefone"></div>
+      <div class="form-row"><label>Telemóvel</label><input type="text" id="cfTelemovel"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn danger" id="btnDeleteCliente" style="display:none;margin-right:auto;">Apagar</button>
+      <button class="btn secondary" onclick="closeModal('modalCliente')">Cancelar</button>
+      <button class="btn" id="btnSaveCliente">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Fatura Emitida -->
+<div class="modal-overlay" id="modalFaturaEmitida">
+  <div class="modal">
+    <h3 id="modalFaturaEmitidaTitle">Nova fatura emitida</h3>
+    <input type="hidden" id="feinId">
+    <div class="form-row">
+      <label>Cliente *</label>
+      <input type="text" id="feinClienteSearch" placeholder="Escrever para pesquisar...">
+      <input type="hidden" id="feinClienteId">
+      <div id="feinClienteResults" style="border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:160px;overflow:auto;display:none;background:#fff;"></div>
+      <div id="feinClienteSelected" class="pill" style="display:none;margin-top:6px;"></div>
+    </div>
+    <div class="form-grid">
+      <div class="form-row"><label>Empresa *</label>
+        <select id="feinEntidade"></select>
+      </div>
+      <div class="form-row"><label>Tipo</label>
+        <select id="feinTipo"><option>Factura</option><option>Nota Crédito</option><option>Recibo</option></select>
+      </div>
+      <div class="form-row"><label>Nº do documento</label><input type="text" id="feinNumeroDoc"></div>
+      <div class="form-row"><label>Mês da fatura</label><input type="month" id="feinMesFactura"></div>
+      <div class="form-row"><label>Data de vencimento</label><input type="date" id="feinDataVencimento"></div>
+      <div class="form-row"><label>Valor (EUR) *</label><input type="number" step="0.01" id="feinValor"></div>
+      <div class="form-row"><label>Estado *</label>
+        <select id="feinStatus"><option>Pendente</option><option>Paga</option><option>Vencida</option></select>
+      </div>
+      <div class="form-row" style="grid-column:1/-1;"><label id="feinDataLabel">Data de pagamento</label><input type="date" id="feinDataPgto"></div>
+      <div class="form-row" style="grid-column:1/-1;"><label>Notas</label><textarea id="feinNotas" rows="2"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn danger" id="btnDeleteFaturaEmitida" style="display:none;margin-right:auto;">Apagar</button>
+      <button class="btn secondary" onclick="closeModal('modalFaturaEmitida')">Cancelar</button>
+      <button class="btn" id="btnSaveFaturaEmitida">Guardar</button>
     </div>
   </div>
 </div>
@@ -361,11 +468,13 @@ const SITE_HOSTNAME = "ventaskpt.sharepoint.com";
 const SITE_PATH = "/sites/NM-SharePoint";
 const FORNECEDORES_LIST_NAME = "Fornecedores";
 const FATURAS_LIST_NAME = "Faturas";
+const CLIENTES_LIST_NAME = "Clientes";
+const FATURAS_EMITIDAS_LIST_NAME = "FaturasEmitidas";
 
 let msalInstance = null;
 let currentAccount = null;
-let state = { suppliers: [], invoices: [], entidades: SEED_DATA.entidades, tipos: SEED_DATA.tipos, statuses: SEED_DATA.statuses };
-let siteId = null, fornecedoresListId = null, faturasListId = null;
+let state = { suppliers: [], invoices: [], clients: [], issuedInvoices: [], entidades: SEED_DATA.entidades, tipos: SEED_DATA.tipos, statuses: SEED_DATA.statuses, statusesEmitidas: ["Pendente","Paga","Vencida"] };
+let siteId = null, fornecedoresListId = null, faturasListId = null, clientesListId = null, faturasEmitidasListId = null;
 
 /* ====================== UTIL ====================== */
 const fmtCurrency = v => new Intl.NumberFormat('pt-PT', {style:'currency', currency:'EUR'}).format(v||0);
@@ -391,11 +500,12 @@ function showToast(msg){
   showToast._t = setTimeout(()=>t.classList.remove('show'), 2400);
 }
 function statusBadge(status){
-  const map = {"Paga":"paga","Pendente":"pendente","A confirmar":"confirmar","Disputa":"disputa"};
+  const map = {"Paga":"paga","Pendente":"pendente","A confirmar":"confirmar","Disputa":"disputa","Vencida":"disputa"};
   const cls = map[status] || "confirmar";
   return `<span class="badge ${cls}">${escapeHtml(status)}</span>`;
 }
 function supplierById(id){ return state.suppliers.find(s=>s.id===id); }
+function clientById(id){ return state.clients.find(s=>s.id===id); }
 function setAuthGateMsg(msg){ document.getElementById('authGateMsg').textContent = msg; }
 function setAuthGateSpinner(on){ document.getElementById('authGateSpinner').style.display = on? 'block':'none'; }
 function setAuthGateProgress(pct, text){
@@ -595,6 +705,54 @@ function invoiceToSpFields(i){
   if(i.data_pgto) out.DataPagamento = new Date(i.data_pgto+'T00:00:00Z').toISOString();
   return out;
 }
+function mapSpToClient(item){
+  const f = item.fields || {};
+  return {
+    id: 'sp-' + item.id, spId: item.id,
+    nome: f.field_1 || '', nipc: f.field_2!=null? String(f.field_2) : '',
+    morada: f.field_3 || '', numero_porta: f.field_4 || '',
+    codigo_postal: f.field_5!=null? String(f.field_5) : '',
+    localidade: f.field_6 || '', banco: f.field_7 || '', iban: f.field_8 || '', swift: f.field_9 || '',
+    nome_contacto: f.field_10 || '', telefone_fixo: f.field_11 || '', telemovel: f.field_12 || '',
+    email: f.field_13 || '', legacyId: f.LegacyId || ''
+  };
+}
+function clientToSpFields(s){
+  return {
+    Title: s.nome, field_1: s.nome, field_2: s.nipc? Number(s.nipc) : null, field_3: s.morada||'', field_4: s.numero_porta||'',
+    field_5: s.codigo_postal? Number(s.codigo_postal) : null, field_6: s.localidade||'', field_7: s.banco||'', field_8: s.iban||'',
+    field_9: s.swift||'', field_10: s.nome_contacto||'', field_11: s.telefone_fixo? Number(s.telefone_fixo) : null,
+    field_12: s.telemovel? Number(s.telemovel) : null, field_13: s.email||''
+  };
+}
+function mapSpToFaturaEmitida(item){
+  const f = item.fields || {};
+  return {
+    id: 'sp-' + item.id, spId: item.id,
+    cliente_id: '', cliente_nome: f.ClienteNome || '',
+    cliente_nipc: f.ClienteNIPC || '',
+    entidade: f.Entidade || '', tipo: f.Tipo || '', numero_doc: f.NumeroDoc || '',
+    mes_factura: f.MesFactura ? f.MesFactura.slice(0,10) : null,
+    data_vencimento: f.DataVencimento ? f.DataVencimento.slice(0,10) : null,
+    valor: typeof f.Valor === 'number' ? f.Valor : parseFloat(f.Valor||0) || 0,
+    status: f.Status || 'Pendente',
+    data_pgto: f.DataPagamento ? f.DataPagamento.slice(0,10) : null,
+    notas: f.Notas || ''
+  };
+}
+function faturaEmitidaToSpFields(i){
+  const out = {
+    Title: i.numero_doc || i.cliente_nome || 'Fatura',
+    ClienteNome: i.cliente_nome||'', ClienteNIPC: i.cliente_nipc||'',
+    ClienteLegacyId: i.cliente_id||'', Entidade: i.entidade||'', Tipo: i.tipo||'',
+    NumeroDoc: i.numero_doc||'', Valor: i.valor||0, Status: i.status||'',
+    Notas: i.notas||''
+  };
+  if(i.mes_factura) out.MesFactura = new Date(i.mes_factura+'T00:00:00Z').toISOString();
+  if(i.data_vencimento) out.DataVencimento = new Date(i.data_vencimento+'T00:00:00Z').toISOString();
+  if(i.data_pgto) out.DataPagamento = new Date(i.data_pgto+'T00:00:00Z').toISOString();
+  return out;
+}
 
 /* ====================== READ ALL ITEMS (paginated) ====================== */
 async function fetchAllListItems(listId, selectFields){
@@ -742,11 +900,23 @@ async function startApp(){
     siteId = await getSiteId();
     fornecedoresListId = await getListId(FORNECEDORES_LIST_NAME);
     faturasListId = await getListId(FATURAS_LIST_NAME);
+    clientesListId = await getListId(CLIENTES_LIST_NAME);
+    faturasEmitidasListId = await getListId(FATURAS_EMITIDAS_LIST_NAME);
 
     setAuthGateMsg('A carregar fornecedores...');
     if(fornecedoresListId){
       const spItems = await fetchAllListItems(fornecedoresListId, 'LegacyId,Title,field_1,field_2,field_3,field_4,field_5,field_6,field_7,field_8,field_9,field_10,field_11,field_12,field_13');
       state.suppliers = spItems.map(mapSpToSupplier);
+    }
+
+    setAuthGateMsg('A carregar clientes...');
+    if(clientesListId){
+      const spClients = await fetchAllListItems(clientesListId, 'LegacyId,Title,field_1,field_2,field_3,field_4,field_5,field_6,field_7,field_8,field_9,field_10,field_11,field_12,field_13');
+      state.clients = spClients.map(mapSpToClient);
+    }
+    if(faturasEmitidasListId){
+      const spFe = await fetchAllListItems(faturasEmitidasListId, 'ClienteNome,ClienteNIPC,ClienteLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,DataVencimento,Valor,Status,DataPagamento,Notas');
+      mapIssuedInvoicesWithClienteIds(spFe);
     }
 
     if(!faturasListId){
@@ -793,6 +963,18 @@ function mapInvoicesWithFornecedorIds(spItems){
   });
 }
 
+function mapIssuedInvoicesWithClienteIds(spItems){
+  const byLegacy = {};
+  const byName = {};
+  state.clients.forEach(s=>{ if(s.legacyId) byLegacy[s.legacyId]=s.id; byName[s.nome]=s.id; });
+  state.issuedInvoices = spItems.map(item=>{
+    const inv = mapSpToFaturaEmitida(item);
+    const f = item.fields||{};
+    inv.cliente_id = byLegacy[f.ClienteLegacyId] || byName[f.ClienteNome] || '';
+    return inv;
+  });
+}
+
 async function finishStartup(){
   // reload invoices fresh (covers the just-imported case) with fornecedor_id resolved
   if(!state.invoices.length){
@@ -812,6 +994,8 @@ function switchView(name){
   if(name==='dashboard') renderDashboard();
   if(name==='fornecedores') { showFornecedorList(); renderFornecedoresGrid(); }
   if(name==='faturas') renderFaturasTab();
+  if(name==='clientes') { showClienteList(); renderClientesGrid(); }
+  if(name==='faturasEmitidas') renderFaturasEmitidasTab();
   if(name==='relatorios') renderRelatorios();
   if(name==='backup') renderAccountStatus();
 }
@@ -1083,6 +1267,261 @@ document.getElementById('btnSaveFornecedor').addEventListener('click', async ()=
   }
 });
 
+/* ====================== CLIENTES ====================== */
+let clientesPage = 0;
+const CLIENTES_PAGE_SIZE = 24;
+
+function showClienteList(){
+  document.getElementById('clientesList').style.display='block';
+  document.getElementById('clienteDetail').style.display='none';
+}
+
+function renderClientesGrid(){
+  const q = (document.getElementById('clienteSearch').value||'').toLowerCase().trim();
+  let list = state.clients.filter(s => !q || s.nome.toLowerCase().includes(q) || (s.nipc||'').includes(q));
+  list = list.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt'));
+  const total = list.length;
+  const pages = Math.max(1, Math.ceil(total/CLIENTES_PAGE_SIZE));
+  clientesPage = Math.min(clientesPage, pages-1);
+  const pageItems = list.slice(clientesPage*CLIENTES_PAGE_SIZE, (clientesPage+1)*CLIENTES_PAGE_SIZE);
+
+  const grid = document.getElementById('clientesGrid');
+  if(pageItems.length===0){
+    grid.innerHTML = `<div class="empty">Nenhum cliente encontrado.</div>`;
+  } else {
+    grid.innerHTML = pageItems.map(s=>{
+      const invCount = state.issuedInvoices.filter(i=>i.cliente_id===s.id).length;
+      const pendCount = state.issuedInvoices.filter(i=>i.cliente_id===s.id && i.status==='Pendente').length;
+      return `<div class="supplier-card" onclick="openClienteDetail('${s.id}')">
+        <div>
+          <div class="name">${escapeHtml(s.nome)}</div>
+          <div class="meta">${s.nipc?('NIPC '+escapeHtml(s.nipc)+' · '):''}${invCount} fatura${invCount===1?'':'s'}</div>
+        </div>
+        ${pendCount? `<span class="badge pendente">${pendCount} pendente${pendCount===1?'':'s'}</span>` : ''}
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('clientesPagination').innerHTML = `
+    <span>${total} cliente${total===1?'':'s'}</span>
+    <button ${clientesPage===0?'disabled':''} onclick="clientesPage--;renderClientesGrid()">‹</button>
+    <span>Página ${clientesPage+1} / ${pages}</span>
+    <button ${clientesPage>=pages-1?'disabled':''} onclick="clientesPage++;renderClientesGrid()">›</button>
+  `;
+}
+
+let cdState = { clientId: null, tab: 'Pendente', page: 0 };
+const CD_PAGE_SIZE = 50;
+
+function openClienteDetail(id){
+  const s = clientById(id);
+  if(!s) return;
+  if(cdState.clientId !== id) cdState = { clientId: id, tab: 'Pendente', page: 0 };
+  document.getElementById('clientesList').style.display='none';
+  document.getElementById('clienteDetail').style.display='block';
+  renderClienteDetailShell();
+}
+
+function faturaEmitidaRowHtmlWithNipc(i, s){
+  const isOverdue = i.status==='Pendente' && i.data_vencimento && i.data_vencimento < todayISO();
+  return `<tr>
+    <td>${escapeHtml(s.nipc||'—')}</td>
+    <td>${escapeHtml(i.cliente_nome)}</td>
+    <td><span class="pill">${escapeHtml(i.entidade||'—')}</span></td>
+    <td>${statusBadge(i.status)}</td>
+    <td>${isOverdue? '<span class="badge overdue">'+fmtDate(i.data_vencimento)+'</span>' : fmtDate(i.data_vencimento)}</td>
+    <td>${escapeHtml(i.tipo||'—')}</td>
+    <td>${fmtMonth(i.mes_factura)}</td>
+    <td>${escapeHtml(i.numero_doc||'—')}</td>
+    <td class="num">${fmtCurrency(i.valor)}</td>
+    <td style="white-space:nowrap;">
+      ${i.status!=='Paga' ? `<button class="btn small secondary" onclick="quickMarkPaidEmitida('${i.id}')">Marcar paga</button>` : ''}
+      <button class="btn small secondary" onclick="editFaturaEmitida('${i.id}')">Editar</button>
+    </td>
+  </tr>`;
+}
+
+function renderClienteDetailShell(){
+  const s = clientById(cdState.clientId);
+  if(!s) return;
+  const detail = document.getElementById('clienteDetail');
+  const invs = state.issuedInvoices.filter(i=>i.cliente_id===s.id);
+  const pagas = invs.filter(i=>i.status==='Paga');
+  const pendentes = invs.filter(i=>i.status==='Pendente');
+  const vencidas = invs.filter(i=>i.status==='Vencida');
+  const totalRecebido = pagas.reduce((a,i)=>a+i.valor,0);
+  const totalPendente = pendentes.reduce((a,i)=>a+i.valor,0);
+
+  detail.innerHTML = `
+    <div class="back-link" onclick="showClienteList()">← Voltar aos clientes</div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+        <div>
+          <h2 style="font-size:18px;">${escapeHtml(s.nome)}</h2>
+          <div class="sub">${s.nipc? 'NIPC '+escapeHtml(s.nipc):'Sem NIPC registado'}</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn secondary small" onclick="editCliente('${s.id}')">Editar</button>
+          <button class="btn small" onclick="openFaturaEmitidaModal(null, '${s.id}')">+ Nova fatura</button>
+        </div>
+      </div>
+      <div class="detail-grid" style="margin-top:14px;">
+        <div><span class="k">Morada</span>${escapeHtml([s.morada,s.numero_porta].filter(Boolean).join(', ')||'—')}</div>
+        <div><span class="k">Código postal</span>${escapeHtml(s.codigo_postal||'—')}</div>
+        <div><span class="k">Banco</span>${escapeHtml(s.banco||'—')}</div>
+        <div><span class="k">IBAN</span>${escapeHtml(s.iban||'—')}</div>
+        <div><span class="k">SWIFT</span>${escapeHtml(s.swift||'—')}</div>
+        <div><span class="k">Localidade</span>${escapeHtml(s.localidade||'—')}</div>
+        <div><span class="k">Nome de contacto</span>${escapeHtml(s.nome_contacto||'—')}</div>
+        <div><span class="k">Telemóvel</span>${escapeHtml(s.telemovel||'—')}</div>
+        <div><span class="k">Telefone fixo</span>${escapeHtml(s.telefone_fixo||'—')}</div>
+        <div><span class="k">E-mail</span>${escapeHtml(s.email||'—')}</div>
+      </div>
+    </div>
+    <div class="grid-stats" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));">
+      <div class="stat"><div class="label">Valor Recebido</div><div class="value green">${fmtCurrency(totalRecebido)}</div><div class="muted" style="font-size:12px;margin-top:2px;">${pagas.length} fatura${pagas.length===1?'':'s'}</div></div>
+      <div class="stat"><div class="label">Valor Pendente</div><div class="value amber">${fmtCurrency(totalPendente)}</div><div class="muted" style="font-size:12px;margin-top:2px;">${pendentes.length} fatura${pendentes.length===1?'':'s'}</div></div>
+    </div>
+    <div class="card">
+      <div class="tag-row">
+        <button class="filter-chip ${cdState.tab==='Pendente'?'active':''}" onclick="setCdTab('Pendente')">F. Pendentes (${pendentes.length})</button>
+        <button class="filter-chip ${cdState.tab==='Paga'?'active':''}" onclick="setCdTab('Paga')">F. Pagas (${pagas.length})</button>
+        ${vencidas.length? `<button class="filter-chip ${cdState.tab==='Vencida'?'active':''}" onclick="setCdTab('Vencida')">Vencidas (${vencidas.length})</button>` : ''}
+      </div>
+      <table>
+        <thead><tr>
+          <th>NIPC</th><th>Cliente</th><th>Empresa</th><th>Estado</th><th>Data vencimento</th><th>Tipo</th><th>Mês</th><th>Nº Doc</th><th class="num">Valor</th><th></th>
+        </tr></thead>
+        <tbody id="cdInvoicesBody"></tbody>
+      </table>
+      <div class="pagination" id="cdPagination"></div>
+    </div>
+  `;
+  renderCdInvoicesTable();
+}
+
+function setCdTab(tab){ cdState.tab = tab; cdState.page = 0; renderClienteDetailShell(); }
+
+function renderCdInvoicesTable(){
+  const s = clientById(cdState.clientId);
+  if(!s) return;
+  const invs = state.issuedInvoices.filter(i=>i.cliente_id===s.id);
+  let list;
+  if(cdState.tab==='Pendente') list = invs.filter(i=>i.status==='Pendente');
+  else if(cdState.tab==='Paga') list = invs.filter(i=>i.status==='Paga');
+  else list = invs.filter(i=>i.status==='Vencida');
+  list = list.slice().sort((a,b)=>(b.mes_factura||'').localeCompare(a.mes_factura||''));
+  const total = list.length;
+  const pages = Math.max(1, Math.ceil(total/CD_PAGE_SIZE));
+  cdState.page = Math.min(cdState.page, pages-1);
+  const pageItems = list.slice(cdState.page*CD_PAGE_SIZE, (cdState.page+1)*CD_PAGE_SIZE);
+  document.getElementById('cdInvoicesBody').innerHTML = pageItems.length
+    ? pageItems.map(i=>faturaEmitidaRowHtmlWithNipc(i, s)).join('')
+    : '<tr><td colspan="10" class="empty">Sem faturas nesta categoria.</td></tr>';
+  document.getElementById('cdPagination').innerHTML = `
+    <span>Registo ${total? (cdState.page*CD_PAGE_SIZE+1):0}–${Math.min((cdState.page+1)*CD_PAGE_SIZE,total)} de ${total}</span>
+    <button ${cdState.page===0?'disabled':''} onclick="cdState.page--;renderCdInvoicesTable()">‹</button>
+    <span>Página ${cdState.page+1} / ${pages}</span>
+    <button ${cdState.page>=pages-1?'disabled':''} onclick="cdState.page++;renderCdInvoicesTable()">›</button>
+  `;
+}
+
+function editCliente(id){
+  const s = clientById(id);
+  document.getElementById('modalClienteTitle').textContent = 'Editar cliente';
+  document.getElementById('cfId').value = s.id;
+  document.getElementById('cfNome').value = s.nome||'';
+  document.getElementById('cfNipc').value = s.nipc||'';
+  document.getElementById('cfLocalidade').value = s.localidade||'';
+  document.getElementById('cfMorada').value = s.morada||'';
+  document.getElementById('cfCodigoPostal').value = s.codigo_postal||'';
+  document.getElementById('cfIban').value = s.iban||'';
+  document.getElementById('cfBanco').value = s.banco||'';
+  document.getElementById('cfContacto').value = s.nome_contacto||'';
+  document.getElementById('cfEmail').value = s.email||'';
+  document.getElementById('cfTelefone').value = s.telefone_fixo||'';
+  document.getElementById('cfTelemovel').value = s.telemovel||'';
+  document.getElementById('btnDeleteCliente').style.display = 'inline-block';
+  openModal('modalCliente');
+}
+
+document.getElementById('btnNovoCliente').addEventListener('click', ()=>{
+  document.getElementById('modalClienteTitle').textContent = 'Novo cliente';
+  ['cfId','cfNome','cfNipc','cfLocalidade','cfMorada','cfCodigoPostal','cfIban','cfBanco','cfContacto','cfEmail','cfTelefone','cfTelemovel']
+    .forEach(id=>document.getElementById(id).value='');
+  document.getElementById('btnDeleteCliente').style.display = 'none';
+  openModal('modalCliente');
+});
+
+document.getElementById('btnSaveCliente').addEventListener('click', async ()=>{
+  const nome = document.getElementById('cfNome').value.trim();
+  if(!nome){ showToast('O nome é obrigatório'); return; }
+  const id = document.getElementById('cfId').value;
+  const data = {
+    nome,
+    nipc: document.getElementById('cfNipc').value.trim(),
+    localidade: document.getElementById('cfLocalidade').value.trim(),
+    morada: document.getElementById('cfMorada').value.trim(),
+    codigo_postal: document.getElementById('cfCodigoPostal').value.trim(),
+    iban: document.getElementById('cfIban').value.trim(),
+    banco: document.getElementById('cfBanco').value.trim(),
+    nome_contacto: document.getElementById('cfContacto').value.trim(),
+    email: document.getElementById('cfEmail').value.trim(),
+    telefone_fixo: document.getElementById('cfTelefone').value.trim(),
+    telemovel: document.getElementById('cfTelemovel').value.trim(),
+    numero_porta: '', swift: ''
+  };
+  const btn = document.getElementById('btnSaveCliente');
+  btn.disabled = true; btn.textContent = 'A guardar...';
+  try{
+    if(id){
+      const s = clientById(id);
+      Object.assign(s, data);
+      await graphFetch(`/sites/${siteId}/lists/${clientesListId}/items/${s.spId}/fields`, { method:'PATCH', body: JSON.stringify(clientToSpFields(s)) });
+      showToast('Cliente atualizado');
+    } else {
+      const created = await graphFetch(`/sites/${siteId}/lists/${clientesListId}/items`, { method:'POST', body: JSON.stringify({ fields: clientToSpFields(data) }) });
+      state.clients.push({ id: 'sp-'+created.id, spId: created.id, ...data });
+      showToast('Cliente criado');
+    }
+    closeModal('modalCliente');
+    renderClientesGrid();
+    if(id) openClienteDetail(id);
+  }catch(e){
+    console.error(e);
+    showToast('Erro a gravar no SharePoint: ' + e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = 'Guardar';
+  }
+});
+
+document.getElementById('btnDeleteCliente').addEventListener('click', async ()=>{
+  const id = document.getElementById('cfId').value;
+  if(!id) return;
+  const s = clientById(id);
+  if(!s) return;
+  const linked = state.issuedInvoices.filter(i=>i.cliente_id===id);
+  if(linked.length){
+    alert(`Não é possível apagar "${s.nome}": tem ${linked.length} fatura${linked.length===1?'':'s'} associada${linked.length===1?'':'s'}.\n\nApaga primeiro essas faturas (ou muda-as de cliente) antes de apagar o cliente.`);
+    return;
+  }
+  if(!confirm(`Apagar o cliente "${s.nome}"?\n\nEsta ação não pode ser desfeita.`)) return;
+  const btn = document.getElementById('btnDeleteCliente');
+  btn.disabled = true; btn.textContent = 'A apagar...';
+  try{
+    await graphFetch(`/sites/${siteId}/lists/${clientesListId}/items/${s.spId}`, { method:'DELETE' });
+    state.clients = state.clients.filter(x=>x.id!==id);
+    closeModal('modalCliente');
+    renderClientesGrid();
+    if(document.getElementById('clienteDetail').style.display!=='none') document.getElementById('clienteDetail').style.display='none';
+    showToast('Cliente apagado');
+  }catch(e){
+    console.error(e);
+    showToast('Erro a apagar no SharePoint: ' + e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = 'Apagar';
+  }
+});
+
 /* ====================== FATURAS ====================== */
 let faturasPage = 0;
 const FATURAS_PAGE_SIZE = 50;
@@ -1143,17 +1582,31 @@ function populateAnoFilter(){
 }
 
 let markPaidTargetId = null;
+let markPaidKind = 'fornecedor'; // 'fornecedor' | 'cliente'
 function quickMarkPaid(invId){
   const inv = state.invoices.find(i=>i.id===invId);
   if(!inv) return;
+  markPaidKind = 'fornecedor';
   markPaidTargetId = invId;
+  document.getElementById('modalMarkPaidTitle').textContent = 'Marcar como paga';
+  document.getElementById('mpData').value = inv.data_pgto || todayISO();
+  openModal('modalMarkPaid');
+}
+function quickMarkPaidEmitida(invId){
+  const inv = state.issuedInvoices.find(i=>i.id===invId);
+  if(!inv) return;
+  markPaidKind = 'cliente';
+  markPaidTargetId = invId;
+  document.getElementById('modalMarkPaidTitle').textContent = 'Marcar como paga (recebida)';
   document.getElementById('mpData').value = inv.data_pgto || todayISO();
   openModal('modalMarkPaid');
 }
 
 document.getElementById('btnConfirmMarkPaid').addEventListener('click', async ()=>{
   const invId = markPaidTargetId;
-  const inv = state.invoices.find(i=>i.id===invId);
+  const kind = markPaidKind;
+  const list = kind==='cliente' ? state.issuedInvoices : state.invoices;
+  const inv = list.find(i=>i.id===invId);
   if(!inv){ closeModal('modalMarkPaid'); return; }
   const d = document.getElementById('mpData').value;
   if(!/^\d{4}-\d{2}-\d{2}$/.test(d)){ showToast('Data inválida'); return; }
@@ -1161,17 +1614,22 @@ document.getElementById('btnConfirmMarkPaid').addEventListener('click', async ()
   const prevStatus = inv.status, prevData = inv.data_pgto;
   inv.status = 'Paga';
   inv.data_pgto = d;
-  renderFaturasTab(); renderDashboard();
+  if(kind==='cliente'){ renderFaturasEmitidasTab(); } else { renderFaturasTab(); renderDashboard(); }
   try{
-    await graphFetch(`/sites/${siteId}/lists/${faturasListId}/items/${inv.spId}/fields`, { method:'PATCH', body: JSON.stringify({ Status:'Paga', DataPagamento: new Date(d+'T00:00:00Z').toISOString() }) });
+    const listId = kind==='cliente' ? faturasEmitidasListId : faturasListId;
+    await graphFetch(`/sites/${siteId}/lists/${listId}/items/${inv.spId}/fields`, { method:'PATCH', body: JSON.stringify({ Status:'Paga', DataPagamento: new Date(d+'T00:00:00Z').toISOString() }) });
     showToast('Fatura marcada como paga');
   }catch(e){
     console.error(e);
     inv.status = prevStatus; inv.data_pgto = prevData;
-    renderFaturasTab(); renderDashboard();
+    if(kind==='cliente'){ renderFaturasEmitidasTab(); } else { renderFaturasTab(); renderDashboard(); }
     showToast('Erro a gravar no SharePoint: ' + e.message);
   }
-  if(document.getElementById('fornecedorDetail').style.display!=='none') openFornecedorDetail(inv.fornecedor_id);
+  if(kind==='cliente'){
+    if(document.getElementById('clienteDetail').style.display!=='none') openClienteDetail(inv.cliente_id);
+  } else {
+    if(document.getElementById('fornecedorDetail').style.display!=='none') openFornecedorDetail(inv.fornecedor_id);
+  }
 });
 
 document.getElementById('btnNovaFatura').addEventListener('click', ()=>openFaturaModal(null,null));
@@ -1335,6 +1793,226 @@ document.getElementById('btnDeleteFatura').addEventListener('click', async ()=>{
   }
 });
 
+/* ====================== FATURAS EMITIDAS ====================== */
+let fePage = 0;
+const FE_PAGE_SIZE = 50;
+
+function renderFaturasEmitidasDashStats(){
+  const ent = currentEntidadeFilter();
+  const invs = state.issuedInvoices.filter(i => !ent || i.entidade===ent);
+  const pendente = invs.filter(i=>i.status==='Pendente');
+  const totalPendente = pendente.reduce((a,i)=>a+i.valor,0);
+  const overdue = invs.filter(i => i.status==='Vencida' || (i.status==='Pendente' && i.data_vencimento && i.data_vencimento < todayISO()));
+  const totalOverdue = overdue.reduce((a,i)=>a+i.valor,0);
+  const pagas = invs.filter(i=>i.status==='Paga');
+  const totalRecebido = pagas.reduce((a,i)=>a+i.valor,0);
+
+  const stats = [
+    {label:"Total a receber", value: fmtCurrency(totalPendente), cls:"amber"},
+    {label:"Vencidas (em atraso)", value: fmtCurrency(totalOverdue), cls: overdue.length? "red":"green"},
+    {label:"Total recebido", value: fmtCurrency(totalRecebido), cls:"green"},
+  ];
+  document.getElementById('feDashStats').innerHTML = stats.map(s=>`
+    <div class="stat"><div class="label">${s.label}</div><div class="value ${s.cls}">${s.value}</div></div>
+  `).join('');
+}
+
+function faturaEmitidaRowHtml(i){
+  const isOverdue = i.status==='Pendente' && i.data_vencimento && i.data_vencimento < todayISO();
+  return `<tr>
+    <td>${escapeHtml(i.cliente_nome)}</td>
+    <td><span class="pill">${escapeHtml(i.entidade||'—')}</span></td>
+    <td>${escapeHtml(i.tipo||'—')}</td>
+    <td>${escapeHtml(i.numero_doc||'—')}</td>
+    <td>${fmtMonth(i.mes_factura)}</td>
+    <td class="num">${fmtCurrency(i.valor)}</td>
+    <td>${statusBadge(i.status)}</td>
+    <td>${isOverdue? '<span class="badge overdue">'+fmtDate(i.data_vencimento)+'</span>' : fmtDate(i.data_vencimento)}</td>
+    <td style="white-space:nowrap;">
+      ${i.status!=='Paga' ? `<button class="btn small secondary" onclick="quickMarkPaidEmitida('${i.id}')">Marcar paga</button>` : ''}
+      <button class="btn small secondary" onclick="editFaturaEmitida('${i.id}')">Editar</button>
+    </td>
+  </tr>`;
+}
+
+function renderFaturasEmitidasTab(){
+  renderFaturasEmitidasDashStats();
+  const ent = currentEntidadeFilter();
+  const q = (document.getElementById('feSearch').value||'').toLowerCase().trim();
+  const statusF = document.getElementById('feStatusFilter').value;
+  const anoF = document.getElementById('feAnoFilter').value;
+
+  let list = state.issuedInvoices.filter(i=>{
+    if(ent && i.entidade!==ent) return false;
+    if(statusF && i.status!==statusF) return false;
+    if(anoF && !(i.mes_factura||'').startsWith(anoF)) return false;
+    if(q && !(i.cliente_nome.toLowerCase().includes(q) || (i.numero_doc||'').toLowerCase().includes(q))) return false;
+    return true;
+  });
+  list = list.slice().sort((a,b)=>(b.mes_factura||'').localeCompare(a.mes_factura||''));
+
+  const total = list.length;
+  const pages = Math.max(1, Math.ceil(total/FE_PAGE_SIZE));
+  fePage = Math.min(fePage, pages-1);
+  const pageItems = list.slice(fePage*FE_PAGE_SIZE, (fePage+1)*FE_PAGE_SIZE);
+
+  document.getElementById('feEmpty').style.display = total? 'none':'block';
+  document.getElementById('feBody').innerHTML = pageItems.map(faturaEmitidaRowHtml).join('');
+  document.getElementById('fePagination').innerHTML = `
+    <span>${total} fatura${total===1?'':'s'}</span>
+    <button ${fePage===0?'disabled':''} onclick="fePage--;renderFaturasEmitidasTab()">‹</button>
+    <span>Página ${fePage+1} / ${pages}</span>
+    <button ${fePage>=pages-1?'disabled':''} onclick="fePage++;renderFaturasEmitidasTab()">›</button>
+  `;
+}
+
+function populateFeAnoFilter(){
+  const anos = new Set(state.issuedInvoices.map(i=>(i.mes_factura||'').slice(0,4)).filter(Boolean));
+  const sel = document.getElementById('feAnoFilter');
+  const sorted = Array.from(anos).sort().reverse();
+  sel.innerHTML = '<option value="">Todos os anos</option>' + sorted.map(a=>`<option value="${a}">${a}</option>`).join('');
+}
+
+document.getElementById('btnNovaFaturaEmitida').addEventListener('click', ()=>openFaturaEmitidaModal(null,null));
+
+function openFaturaEmitidaModal(invId, presetClienteId){
+  const inv = invId ? state.issuedInvoices.find(i=>i.id===invId) : null;
+  document.getElementById('modalFaturaEmitidaTitle').textContent = inv ? 'Editar fatura emitida' : 'Nova fatura emitida';
+  document.getElementById('feinId').value = inv? inv.id : '';
+  document.getElementById('feinClienteSearch').value = inv ? inv.cliente_nome : (presetClienteId? clientById(presetClienteId).nome : '');
+  document.getElementById('feinClienteId').value = inv ? inv.cliente_id : (presetClienteId||'');
+  document.getElementById('feinClienteSelected').style.display='none';
+  document.getElementById('feinEntidade').value = inv? inv.entidade : (SEED_DATA.entidades[0]||'');
+  document.getElementById('feinTipo').value = inv? inv.tipo : 'Factura';
+  document.getElementById('feinNumeroDoc').value = inv? inv.numero_doc : '';
+  document.getElementById('feinMesFactura').value = inv? (inv.mes_factura||'').slice(0,7) : todayISO().slice(0,7);
+  document.getElementById('feinDataVencimento').value = inv? (inv.data_vencimento||'') : '';
+  document.getElementById('feinValor').value = inv? inv.valor : '';
+  document.getElementById('feinStatus').value = inv? inv.status : 'Pendente';
+  document.getElementById('feinDataPgto').value = inv? (inv.data_pgto||'') : '';
+  document.getElementById('feinNotas').value = inv? (inv.notas||'') : '';
+  document.getElementById('btnDeleteFaturaEmitida').style.display = inv ? 'inline-block' : 'none';
+  updateFeinDataLabel();
+  openModal('modalFaturaEmitida');
+}
+function editFaturaEmitida(id){ openFaturaEmitidaModal(id, null); }
+
+function updateFeinDataLabel(){
+  const st = document.getElementById('feinStatus').value;
+  document.getElementById('feinDataLabel').textContent = st==='Paga' ? 'Data de pagamento' : 'Data de pagamento (se aplicável)';
+}
+document.getElementById('feinStatus').addEventListener('change', updateFeinDataLabel);
+
+document.getElementById('feinClienteSearch').addEventListener('input', function(){
+  const q = this.value.toLowerCase().trim();
+  const box = document.getElementById('feinClienteResults');
+  if(!q){ box.style.display='none'; box.innerHTML=''; return; }
+  const matches = state.clients.filter(s=>s.nome.toLowerCase().includes(q)).slice(0,8);
+  if(!matches.length){ box.style.display='none'; box.innerHTML=''; return; }
+  box.innerHTML = matches.map(s=>`<div style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--border);" onmousedown="selectClienteForFaturaEmitida('${s.id}')">${escapeHtml(s.nome)} ${s.nipc?'<span class=\"muted\">· '+escapeHtml(s.nipc)+'</span>':''}</div>`).join('');
+  box.style.display='block';
+});
+function selectClienteForFaturaEmitida(id){
+  const s = clientById(id);
+  document.getElementById('feinClienteId').value = id;
+  document.getElementById('feinClienteSearch').value = s.nome;
+  document.getElementById('feinClienteResults').style.display='none';
+}
+
+document.getElementById('btnSaveFaturaEmitida').addEventListener('click', async ()=>{
+  const clienteId = document.getElementById('feinClienteId').value;
+  const clienteNomeTyped = document.getElementById('feinClienteSearch').value.trim();
+  if(!clienteNomeTyped){ showToast('Indica o cliente'); return; }
+  const valor = parseFloat(document.getElementById('feinValor').value);
+  if(isNaN(valor)){ showToast('Indica o valor'); return; }
+
+  const btn = document.getElementById('btnSaveFaturaEmitida');
+  btn.disabled = true; btn.textContent = 'A guardar...';
+  try{
+    let finalClienteId = clienteId;
+    let finalNome = clienteNomeTyped;
+    let finalNipc = '';
+    if(!finalClienteId){
+      const existing = state.clients.find(s=>s.nome.trim().toLowerCase()===clienteNomeTyped.trim().toLowerCase());
+      if(existing){ finalClienteId = existing.id; finalNome = existing.nome; finalNipc = existing.nipc||''; }
+      else{
+        const newCli = { nome:clienteNomeTyped, nipc:'', morada:'', numero_porta:'', codigo_postal:'',
+          localidade:'', banco:'', iban:'', swift:'', nome_contacto:'', telefone_fixo:'', telemovel:'', email:'' };
+        const created = await graphFetch(`/sites/${siteId}/lists/${clientesListId}/items`, { method:'POST', body: JSON.stringify({ fields: clientToSpFields(newCli) }) });
+        finalClienteId = 'sp-'+created.id;
+        state.clients.push({ id: finalClienteId, spId: created.id, ...newCli });
+      }
+    } else {
+      const cli = clientById(finalClienteId);
+      finalNome = cli.nome; finalNipc = cli.nipc||'';
+    }
+
+    const mes = document.getElementById('feinMesFactura').value;
+    const data = {
+      cliente_id: finalClienteId, cliente_nome: finalNome, cliente_nipc: finalNipc,
+      entidade: document.getElementById('feinEntidade').value,
+      tipo: document.getElementById('feinTipo').value,
+      numero_doc: document.getElementById('feinNumeroDoc').value.trim(),
+      mes_factura: mes ? mes+'-01' : null,
+      data_vencimento: document.getElementById('feinDataVencimento').value || null,
+      valor: Math.round(valor*100)/100,
+      status: document.getElementById('feinStatus').value,
+      data_pgto: document.getElementById('feinDataPgto').value || null,
+      notas: document.getElementById('feinNotas').value.trim(),
+    };
+
+    const id = document.getElementById('feinId').value;
+    if(id){
+      const inv = state.issuedInvoices.find(i=>i.id===id);
+      Object.assign(inv, data);
+      await graphFetch(`/sites/${siteId}/lists/${faturasEmitidasListId}/items/${inv.spId}/fields`, { method:'PATCH', body: JSON.stringify(faturaEmitidaToSpFields(inv)) });
+      showToast('Fatura atualizada');
+    } else {
+      const created = await graphFetch(`/sites/${siteId}/lists/${faturasEmitidasListId}/items`, { method:'POST', body: JSON.stringify({ fields: faturaEmitidaToSpFields(data) }) });
+      state.issuedInvoices.push({ id: 'sp-'+created.id, spId: created.id, ...data });
+      showToast('Fatura criada');
+    }
+    closeModal('modalFaturaEmitida');
+    populateFeAnoFilter();
+    renderFaturasEmitidasTab(); renderClientesGrid();
+    if(document.getElementById('clienteDetail').style.display!=='none') openClienteDetail(finalClienteId);
+  }catch(e){
+    console.error(e);
+    showToast('Erro a gravar no SharePoint: ' + e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = 'Guardar';
+  }
+});
+
+document.getElementById('btnDeleteFaturaEmitida').addEventListener('click', async ()=>{
+  const id = document.getElementById('feinId').value;
+  if(!id) return;
+  const inv = state.issuedInvoices.find(i=>i.id===id);
+  if(!inv) return;
+  if(!confirm(`Apagar a fatura ${inv.numero_doc||'(sem nº)'} de ${inv.cliente_nome} — ${fmtCurrency(inv.valor)}?\n\nEsta ação não pode ser desfeita.`)) return;
+  const btn = document.getElementById('btnDeleteFaturaEmitida');
+  btn.disabled = true; btn.textContent = 'A apagar...';
+  try{
+    await graphFetch(`/sites/${siteId}/lists/${faturasEmitidasListId}/items/${inv.spId}`, { method:'DELETE' });
+    state.issuedInvoices = state.issuedInvoices.filter(i=>i.id!==id);
+    closeModal('modalFaturaEmitida');
+    populateFeAnoFilter();
+    renderFaturasEmitidasTab(); renderClientesGrid();
+    if(document.getElementById('clienteDetail').style.display!=='none') openClienteDetail(inv.cliente_id);
+    showToast('Fatura apagada');
+  }catch(e){
+    console.error(e);
+    showToast('Erro a apagar no SharePoint: ' + e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = 'Apagar';
+  }
+});
+
+document.getElementById('clienteSearch').addEventListener('input', ()=>{clientesPage=0; renderClientesGrid();});
+document.getElementById('feSearch').addEventListener('input', ()=>{fePage=0; renderFaturasEmitidasTab();});
+document.getElementById('feStatusFilter').addEventListener('change', ()=>{fePage=0; renderFaturasEmitidasTab();});
+document.getElementById('feAnoFilter').addEventListener('change', ()=>{fePage=0; renderFaturasEmitidasTab();});
+
 /* ====================== RELATORIOS ====================== */
 function populateRelatorioFilters(){
   const empSel = document.getElementById('relEmpresaFilter');
@@ -1455,12 +2133,16 @@ function populateEntidadeFilters(){
 }
 
 function initAfterStateChange(){
-  fornecedoresPage = 0; faturasPage = 0;
+  fornecedoresPage = 0; faturasPage = 0; clientesPage = 0; fePage = 0;
   populateAnoFilter();
+  populateFeAnoFilter();
   renderDashboard();
   showFornecedorList();
   renderFornecedoresGrid();
   renderFaturasTab();
+  showClienteList();
+  renderClientesGrid();
+  renderFaturasEmitidasTab();
   renderRelatorios();
 }
 
