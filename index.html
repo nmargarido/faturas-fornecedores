@@ -1350,7 +1350,7 @@ function renderClientesGrid(){
   `;
 }
 
-let cdState = { clientId: null, tab: 'Pendente', page: 0, ano: '' };
+let cdState = { clientId: null, tab: 'Pendente', page: 0, ano: '', mes: '' };
 const CD_PAGE_SIZE = 50;
 
 function openClienteDetail(id){
@@ -1388,7 +1388,11 @@ function renderClienteDetailShell(){
   const invsAll = state.issuedInvoices.filter(i=>i.cliente_id===s.id);
   const anos = Array.from(new Set(invsAll.map(i=>(i.mes_factura||'').slice(0,4)).filter(Boolean))).sort().reverse();
   if(cdState.ano && !anos.includes(cdState.ano)) cdState.ano = '';
-  const invs = cdState.ano ? invsAll.filter(i=>(i.mes_factura||'').startsWith(cdState.ano)) : invsAll;
+  const invs = invsAll.filter(i=>{
+    if(cdState.ano && !(i.mes_factura||'').startsWith(cdState.ano)) return false;
+    if(cdState.mes && (i.mes_factura||'').slice(5,7)!==cdState.mes) return false;
+    return true;
+  });
   const pagas = invs.filter(i=>i.status==='Paga');
   const pendentes = invs.filter(i=>i.status==='Pendente');
   const vencidas = invs.filter(i=>i.status==='Vencida');
@@ -1410,6 +1414,21 @@ function renderClienteDetailShell(){
           <select id="cdAnoFilter" onchange="setCdAno(this.value)">
             <option value="">Todos os anos</option>
             ${anos.map(a=>`<option value="${a}" ${cdState.ano===a?'selected':''}>${a}</option>`).join('')}
+          </select>
+          <select id="cdMesFilter" onchange="setCdMes(this.value)">
+            <option value="">Todos os meses</option>
+            <option value="01" ${cdState.mes==='01'?'selected':''}>Janeiro</option>
+            <option value="02" ${cdState.mes==='02'?'selected':''}>Fevereiro</option>
+            <option value="03" ${cdState.mes==='03'?'selected':''}>Março</option>
+            <option value="04" ${cdState.mes==='04'?'selected':''}>Abril</option>
+            <option value="05" ${cdState.mes==='05'?'selected':''}>Maio</option>
+            <option value="06" ${cdState.mes==='06'?'selected':''}>Junho</option>
+            <option value="07" ${cdState.mes==='07'?'selected':''}>Julho</option>
+            <option value="08" ${cdState.mes==='08'?'selected':''}>Agosto</option>
+            <option value="09" ${cdState.mes==='09'?'selected':''}>Setembro</option>
+            <option value="10" ${cdState.mes==='10'?'selected':''}>Outubro</option>
+            <option value="11" ${cdState.mes==='11'?'selected':''}>Novembro</option>
+            <option value="12" ${cdState.mes==='12'?'selected':''}>Dezembro</option>
           </select>
           <button class="btn secondary small" onclick="editCliente('${s.id}')">Editar</button>
           <button class="btn small" onclick="openFaturaEmitidaModal(null, '${s.id}')">+ Nova fatura</button>
@@ -1454,12 +1473,17 @@ function renderClienteDetailShell(){
 
 function setCdTab(tab){ cdState.tab = tab; cdState.page = 0; renderClienteDetailShell(); }
 function setCdAno(ano){ cdState.ano = ano; cdState.page = 0; renderClienteDetailShell(); }
+function setCdMes(mes){ cdState.mes = mes; cdState.page = 0; renderClienteDetailShell(); }
 
 function renderCdInvoicesTable(){
   const s = clientById(cdState.clientId);
   if(!s) return;
   const invs0 = state.issuedInvoices.filter(i=>i.cliente_id===s.id);
-  const invs = cdState.ano ? invs0.filter(i=>(i.mes_factura||'').startsWith(cdState.ano)) : invs0;
+  const invs = invs0.filter(i=>{
+    if(cdState.ano && !(i.mes_factura||'').startsWith(cdState.ano)) return false;
+    if(cdState.mes && (i.mes_factura||'').slice(5,7)!==cdState.mes) return false;
+    return true;
+  });
   let list;
   if(cdState.tab==='Pendente') list = invs.filter(i=>i.status==='Pendente');
   else if(cdState.tab==='Paga') list = invs.filter(i=>i.status==='Paga');
@@ -1854,7 +1878,18 @@ const FE_PAGE_SIZE = 50;
 
 function renderFaturasEmitidasDashStats(){
   const ent = currentEntidadeFilter();
-  const invs = state.issuedInvoices.filter(i => !ent || i.entidade===ent);
+  const anoF = document.getElementById('feAnoFilter').value;
+  const mesF = document.getElementById('feMesFilter').value;
+  const statusF = document.getElementById('feStatusFilter').value;
+  const q = (document.getElementById('feSearch').value||'').toLowerCase().trim();
+  const invs = state.issuedInvoices.filter(i=>{
+    if(ent && i.entidade!==ent) return false;
+    if(anoF && !(i.mes_factura||'').startsWith(anoF)) return false;
+    if(mesF && (i.mes_factura||'').slice(5,7)!==mesF) return false;
+    if(statusF && i.status!==statusF) return false;
+    if(q && !(i.cliente_nome.toLowerCase().includes(q) || (i.numero_doc||'').toLowerCase().includes(q))) return false;
+    return true;
+  });
   const pendente = invs.filter(i=>i.status==='Pendente');
   const totalPendente = pendente.reduce((a,i)=>a+i.valor,0);
   const overdue = invs.filter(i => i.status==='Vencida' || (i.status==='Pendente' && i.data_vencimento && i.data_vencimento < todayISO()));
