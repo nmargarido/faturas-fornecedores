@@ -1343,7 +1343,7 @@ function renderClientesGrid(){
   `;
 }
 
-let cdState = { clientId: null, tab: 'Pendente', page: 0 };
+let cdState = { clientId: null, tab: 'Pendente', page: 0, ano: '' };
 const CD_PAGE_SIZE = 50;
 
 function openClienteDetail(id){
@@ -1378,12 +1378,18 @@ function renderClienteDetailShell(){
   const s = clientById(cdState.clientId);
   if(!s) return;
   const detail = document.getElementById('clienteDetail');
-  const invs = state.issuedInvoices.filter(i=>i.cliente_id===s.id);
+  const invsAll = state.issuedInvoices.filter(i=>i.cliente_id===s.id);
+  const anos = Array.from(new Set(invsAll.map(i=>(i.mes_factura||'').slice(0,4)).filter(Boolean))).sort().reverse();
+  if(cdState.ano && !anos.includes(cdState.ano)) cdState.ano = '';
+  const invs = cdState.ano ? invsAll.filter(i=>(i.mes_factura||'').startsWith(cdState.ano)) : invsAll;
   const pagas = invs.filter(i=>i.status==='Paga');
   const pendentes = invs.filter(i=>i.status==='Pendente');
   const vencidas = invs.filter(i=>i.status==='Vencida');
+  const overdue = invs.filter(i => i.status==='Vencida' || (i.status==='Pendente' && i.data_vencimento && i.data_vencimento < todayISO()));
   const totalRecebido = pagas.reduce((a,i)=>a+i.valor,0);
   const totalPendente = pendentes.reduce((a,i)=>a+i.valor,0);
+  const totalVencido = overdue.reduce((a,i)=>a+i.valor,0);
+  const totalEmitido = invs.reduce((a,i)=>a+i.valor,0);
 
   detail.innerHTML = `
     <div class="back-link" onclick="showClienteList()">← Voltar aos clientes</div>
@@ -1393,7 +1399,11 @@ function renderClienteDetailShell(){
           <h2 style="font-size:18px;">${escapeHtml(s.nome)}</h2>
           <div class="sub">${s.nipc? 'NIPC '+escapeHtml(s.nipc):'Sem NIPC registado'}</div>
         </div>
-        <div style="display:flex;gap:8px;">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select id="cdAnoFilter" onchange="setCdAno(this.value)">
+            <option value="">Todos os anos</option>
+            ${anos.map(a=>`<option value="${a}" ${cdState.ano===a?'selected':''}>${a}</option>`).join('')}
+          </select>
           <button class="btn secondary small" onclick="editCliente('${s.id}')">Editar</button>
           <button class="btn small" onclick="openFaturaEmitidaModal(null, '${s.id}')">+ Nova fatura</button>
         </div>
@@ -1414,6 +1424,8 @@ function renderClienteDetailShell(){
     <div class="grid-stats" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));">
       <div class="stat"><div class="label">Valor Recebido</div><div class="value green">${fmtCurrency(totalRecebido)}</div><div class="muted" style="font-size:12px;margin-top:2px;">${pagas.length} fatura${pagas.length===1?'':'s'}</div></div>
       <div class="stat"><div class="label">Valor Pendente</div><div class="value amber">${fmtCurrency(totalPendente)}</div><div class="muted" style="font-size:12px;margin-top:2px;">${pendentes.length} fatura${pendentes.length===1?'':'s'}</div></div>
+      <div class="stat"><div class="label">Valor Vencido</div><div class="value ${overdue.length?'red':'green'}">${fmtCurrency(totalVencido)}</div><div class="muted" style="font-size:12px;margin-top:2px;">${overdue.length} fatura${overdue.length===1?'':'s'}</div></div>
+      <div class="stat"><div class="label">Total Emitido</div><div class="value">${fmtCurrency(totalEmitido)}</div><div class="muted" style="font-size:12px;margin-top:2px;">${invs.length} fatura${invs.length===1?'':'s'}</div></div>
     </div>
     <div class="card">
       <div class="tag-row">
@@ -1434,11 +1446,13 @@ function renderClienteDetailShell(){
 }
 
 function setCdTab(tab){ cdState.tab = tab; cdState.page = 0; renderClienteDetailShell(); }
+function setCdAno(ano){ cdState.ano = ano; cdState.page = 0; renderClienteDetailShell(); }
 
 function renderCdInvoicesTable(){
   const s = clientById(cdState.clientId);
   if(!s) return;
-  const invs = state.issuedInvoices.filter(i=>i.cliente_id===s.id);
+  const invs0 = state.issuedInvoices.filter(i=>i.cliente_id===s.id);
+  const invs = cdState.ano ? invs0.filter(i=>(i.mes_factura||'').startsWith(cdState.ano)) : invs0;
   let list;
   if(cdState.tab==='Pendente') list = invs.filter(i=>i.status==='Pendente');
   else if(cdState.tab==='Paga') list = invs.filter(i=>i.status==='Paga');
