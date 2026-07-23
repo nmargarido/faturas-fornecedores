@@ -69,6 +69,7 @@
   .muted{color:var(--muted);}
   .pill{display:inline-block;padding:2px 8px;border-radius:6px;background:var(--gray-bg);font-size:11.5px;font-weight:600;color:var(--text);}
   .grid-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px;}
+  .dash-recent-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
   .stat{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);}
   .stat .label{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;}
   .stat .value{font-size:22px;font-weight:700;}
@@ -112,6 +113,7 @@
   @media (max-width:640px){
     .detail-grid{grid-template-columns:1fr 1fr;}
     .form-grid{grid-template-columns:1fr;}
+    .dash-recent-grid{grid-template-columns:1fr;}
     header{padding:12px 14px;}
     main{padding:14px;}
   }
@@ -159,14 +161,25 @@
   <!-- DASHBOARD -->
   <div class="view active" id="view-dashboard">
     <div class="grid-stats" id="dashStats"></div>
-    <div class="card">
-      <h2>Últimas 12 faturas inseridas</h2>
-      <div class="sub">As faturas mais recentemente adicionadas ao sistema.</div>
-      <table>
-        <thead><tr><th>Fornecedor</th><th>Empresa</th><th>Nº Doc</th><th>Estado</th><th class="num">Valor</th></tr></thead>
-                <tbody id="dashUrgentBody"></tbody>
-      </table>
-      <div class="empty" id="dashUrgentEmpty" style="display:none;">Sem faturas registadas.</div>
+    <div class="dash-recent-grid">
+      <div class="card">
+        <h2>Últimas 6 faturas de clientes</h2>
+        <div class="sub">Faturas emitidas mais recentemente inseridas no sistema.</div>
+        <table>
+          <thead><tr><th>Cliente</th><th>Nº Doc</th><th class="num">Valor</th><th>Inserido em</th><th>Por</th></tr></thead>
+          <tbody id="dashRecentClientesBody"></tbody>
+        </table>
+        <div class="empty" id="dashRecentClientesEmpty" style="display:none;">Sem faturas registadas.</div>
+      </div>
+      <div class="card">
+        <h2>Últimas 6 faturas de fornecedores</h2>
+        <div class="sub">Faturas de fornecedores mais recentemente inseridas no sistema.</div>
+        <table>
+          <thead><tr><th>Fornecedor</th><th>Nº Doc</th><th class="num">Valor</th><th>Inserido em</th><th>Por</th></tr></thead>
+          <tbody id="dashRecentFornecedoresBody"></tbody>
+        </table>
+        <div class="empty" id="dashRecentFornecedoresEmpty" style="display:none;">Sem faturas registadas.</div>
+      </div>
     </div>
   </div>
 
@@ -496,6 +509,9 @@ const FATURAS_EMITIDAS_LIST_NAME = "FaturasEmitidas";
 
 let msalInstance = null;
 let currentAccount = null;
+function currentUserDisplayName(){
+  return currentAccount ? (currentAccount.name || currentAccount.username || '—') : '—';
+}
 let state = { suppliers: [], invoices: [], clients: [], issuedInvoices: [], entidades: SEED_DATA.entidades, tipos: SEED_DATA.tipos, statuses: SEED_DATA.statuses, statusesEmitidas: ["Pendente","Paga","Vencida"] };
 let siteId = null, fornecedoresListId = null, faturasListId = null, clientesListId = null, faturasEmitidasListId = null;
 
@@ -505,6 +521,17 @@ const fmtDate = iso => {
   if(!iso) return '—';
   const [y,m,d] = iso.split('-');
   return `${d}/${m}/${y}`;
+};
+const fmtDateTime = iso => {
+  if(!iso) return '—';
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return '—';
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const yyyy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2,'0');
+  const min = String(d.getMinutes()).padStart(2,'0');
+  return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
 };
 const fmtMonth = iso => {
   if(!iso) return '—';
@@ -730,7 +757,9 @@ function mapSpToInvoice(item){
     valor: typeof f.Valor === 'number' ? f.Valor : parseFloat(f.Valor||0) || 0,
     status: f.Status || 'A confirmar',
     data_pgto: f.DataPagamento ? f.DataPagamento.slice(0,10) : null,
-    notas: f.Notas || ''
+    notas: f.Notas || '',
+    criado_em: item.createdDateTime || null,
+    criado_por: (item.createdBy && item.createdBy.user && item.createdBy.user.displayName) || ''
   };
 }
 function invoiceToSpFields(i){
@@ -778,7 +807,9 @@ function mapSpToFaturaEmitida(item){
     valor: typeof f.Valor === 'number' ? f.Valor : parseFloat(f.Valor||0) || 0,
     status: f.Status || 'Pendente',
     data_pgto: f.DataPagamento ? f.DataPagamento.slice(0,10) : null,
-    notas: f.Notas || ''
+    notas: f.Notas || '',
+    criado_em: item.createdDateTime || null,
+    criado_por: (item.createdBy && item.createdBy.user && item.createdBy.user.displayName) || ''
   };
 }
 function faturaEmitidaToSpFields(i){
@@ -1070,30 +1101,47 @@ function renderDashboard(){
   const ent = currentEntidadeFilter();
   const invs = state.invoices.filter(i => !ent || i.entidade===ent);
   const pendente = invs.filter(i=>i.status==='Pendente');
-    const totalPendente = pendente.reduce((a,i)=>a+i.valor,0);
+  const totalPendente = pendente.reduce((a,i)=>a+i.valor,0);
   const overdue = pendente.filter(i => i.data_pgto && i.data_pgto < todayISO());
   const totalOverdue = overdue.reduce((a,i)=>a+i.valor,0);
-  
+
   const stats = [
-        {label:"Total pendente", value: fmtCurrency(totalPendente), cls:"amber"},
+    {label:"Total pendente", value: fmtCurrency(totalPendente), cls:"amber"},
     {label:"Vencidas (em atraso)", value: fmtCurrency(totalOverdue), cls: overdue.length? "red":"green"},
-    ];
+  ];
   document.getElementById('dashStats').innerHTML = stats.map(s=>`
     <div class="stat"><div class="label">${s.label}</div><div class="value ${s.cls}">${s.value}</div></div>
   `).join('');
 
-    const recent = invs.slice().sort((a,b)=>(b.spId||0)-(a.spId||0)).slice(0,12);
-      const body = document.getElementById('dashUrgentBody');
-  document.getElementById('dashUrgentEmpty').style.display = recent.length ? 'none':'block';
-  body.innerHTML = recent.map(i=>{
-        return `<tr>
+  const byRecent = (a,b) => {
+    if(a.criado_em && b.criado_em) return b.criado_em.localeCompare(a.criado_em);
+    if(a.criado_em) return -1;
+    if(b.criado_em) return 1;
+    return (b.spId||0)-(a.spId||0);
+  };
+
+  const recentFornecedores = invs.slice().sort(byRecent).slice(0,6);
+  const bodyF = document.getElementById('dashRecentFornecedoresBody');
+  document.getElementById('dashRecentFornecedoresEmpty').style.display = recentFornecedores.length ? 'none':'block';
+  bodyF.innerHTML = recentFornecedores.map(i=>`<tr>
       <td>${escapeHtml(i.fornecedor_nome)}</td>
-      <td><span class="pill">${escapeHtml(i.entidade||'—')}</span></td>
       <td>${escapeHtml(i.numero_doc||'—')}</td>
-      <td>${escapeHtml(i.status||'—')}</td>
       <td class="num">${fmtCurrency(i.valor)}</td>
-    </tr>`;
-  }).join('');
+      <td class="muted" style="font-size:12.5px;white-space:nowrap;">${fmtDateTime(i.criado_em)}</td>
+      <td class="muted" style="font-size:12.5px;">${escapeHtml(i.criado_por||'—')}</td>
+    </tr>`).join('');
+
+  const invsCli = state.issuedInvoices.filter(i => !ent || i.entidade===ent);
+  const recentClientes = invsCli.slice().sort(byRecent).slice(0,6);
+  const bodyC = document.getElementById('dashRecentClientesBody');
+  document.getElementById('dashRecentClientesEmpty').style.display = recentClientes.length ? 'none':'block';
+  bodyC.innerHTML = recentClientes.map(i=>`<tr>
+      <td>${escapeHtml(i.cliente_nome)}</td>
+      <td>${escapeHtml(i.numero_doc||'—')}</td>
+      <td class="num">${fmtCurrency(i.valor)}</td>
+      <td class="muted" style="font-size:12.5px;white-space:nowrap;">${fmtDateTime(i.criado_em)}</td>
+      <td class="muted" style="font-size:12.5px;">${escapeHtml(i.criado_por||'—')}</td>
+    </tr>`).join('');
 }
 
 /* ====================== FORNECEDORES ====================== */
@@ -1946,7 +1994,9 @@ document.getElementById('btnSaveFatura').addEventListener('click', async ()=>{
       showToast('Fatura atualizada');
     } else {
       const created = await graphFetch(`/sites/${siteId}/lists/${faturasListId}/items`, { method:'POST', body: JSON.stringify({ fields: invoiceToSpFields(data) }) });
-      state.invoices.push({ id: 'sp-'+created.id, spId: created.id, ...data });
+      state.invoices.push({ id: 'sp-'+created.id, spId: created.id, ...data,
+        criado_em: created.createdDateTime || new Date().toISOString(),
+        criado_por: (created.createdBy && created.createdBy.user && created.createdBy.user.displayName) || currentUserDisplayName() });
       showToast('Fatura criada');
     }
     closeModal('modalFatura');
@@ -2255,7 +2305,9 @@ document.getElementById('btnSaveFaturaEmitida').addEventListener('click', async 
       showToast('Fatura atualizada');
     } else {
       const created = await graphFetch(`/sites/${siteId}/lists/${faturasEmitidasListId}/items`, { method:'POST', body: JSON.stringify({ fields: faturaEmitidaToSpFields(data) }) });
-      state.issuedInvoices.push({ id: 'sp-'+created.id, spId: created.id, ...data });
+      state.issuedInvoices.push({ id: 'sp-'+created.id, spId: created.id, ...data,
+        criado_em: created.createdDateTime || new Date().toISOString(),
+        criado_por: (created.createdBy && created.createdBy.user && created.createdBy.user.displayName) || currentUserDisplayName() });
       showToast('Fatura criada');
     }
     closeModal('modalFaturaEmitida');
