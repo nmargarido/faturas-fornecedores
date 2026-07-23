@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gestão de Faturas de Fornecedores</title>
+<title>Ventask Invoice App</title>
 <style>
   :root{
     --bg:#f5f6f8; --card:#ffffff; --border:#e2e5ea; --text:#1f2430; --muted:#6b7280;
@@ -16,12 +16,12 @@
   }
   *{box-sizing:border-box;}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);}
-  header{background:var(--navy);border-bottom:3px solid var(--gold);padding:12px 24px;display:flex;align-items:center;gap:20px;position:sticky;top:0;z-index:50;flex-wrap:wrap;}
+  header{background:var(--navy);border-bottom:3px solid var(--gold);padding:15px 24px;display:flex;align-items:center;gap:20px;position:sticky;top:0;z-index:50;flex-wrap:wrap;}
   .header-brand{display:flex;align-items:center;gap:12px;}
-  .header-logo{height:40px;width:auto;display:block;border-radius:6px;background:#fff;padding:3px 8px;box-shadow:0 1px 2px rgba(0,0,0,.15);}
-  header h1{font-size:15px;margin:0;font-weight:600;white-space:nowrap;color:rgba(255,255,255,.9);letter-spacing:.01em;}
+  .header-logo{height:50px;width:auto;display:block;border-radius:6px;background:#fff;padding:4px 10px;box-shadow:0 1px 2px rgba(0,0,0,.15);}
+  header h1{font-size:19px;margin:0;font-weight:700;white-space:nowrap;color:#fff;letter-spacing:.01em;}
   nav{display:flex;gap:4px;flex-wrap:wrap;}
-  nav button{background:none;border:none;padding:8px 14px;border-radius:8px;font-size:14px;cursor:pointer;color:rgba(255,255,255,.72);font-weight:600;}
+  nav button{background:none;border:none;padding:10px 16px;border-radius:8px;font-size:14.5px;cursor:pointer;color:#fff;font-weight:600;}
   nav button.active{background:rgba(250,196,21,.16);color:var(--gold);}
   nav button:hover{background:rgba(255,255,255,.08);}
   .spacer{flex:1;}
@@ -121,7 +121,7 @@
 
 <div id="authGate">
   <div class="box">
-    <h2>Faturas de Fornecedores</h2>
+    <h2>Ventask Invoice App</h2>
     <p id="authGateMsg">Inicia sessão com a tua conta Microsoft para aceder aos dados (SharePoint).</p>
     <div id="authGateSpinner" class="spinner" style="display:none;"></div>
     <div id="authGateProgress" style="display:none;">
@@ -136,7 +136,7 @@
 <header>
   <div class="header-brand">
     <img src="" id="headerLogo" alt="Ventask" class="header-logo">
-    <h1>Faturas de Fornecedores</h1>
+    <h1>Ventask Invoice App</h1>
   </div>
   <nav id="mainNav">
     <button data-view="dashboard" class="active">Resumo</button>
