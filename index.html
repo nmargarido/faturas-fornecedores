@@ -1125,13 +1125,13 @@ function renderFornecedoresGrid(){
   `;
 }
 
-let fdState = { supplierId: null, tab: 'Paga', page: 0 };
+let fdState = { supplierId: null, tab: 'Paga', page: 0, anos: new Set(), meses: new Set() };
 const FD_PAGE_SIZE = 50;
 
 function openFornecedorDetail(id){
   const s = supplierById(id);
   if(!s) return;
-  if(fdState.supplierId !== id) fdState = { supplierId: id, tab: 'Paga', page: 0 };
+  if(fdState.supplierId !== id) fdState = { supplierId: id, tab: 'Paga', page: 0, anos: new Set(), meses: new Set() };
   document.getElementById('fornecedoresList').style.display='none';
   document.getElementById('fornecedorDetail').style.display='block';
   renderFornecedorDetailShell();
@@ -1160,7 +1160,14 @@ function renderFornecedorDetailShell(){
   const s = supplierById(fdState.supplierId);
   if(!s) return;
   const detail = document.getElementById('fornecedorDetail');
-  const invs = state.invoices.filter(i=>i.fornecedor_id===s.id);
+  const invsAll = state.invoices.filter(i=>i.fornecedor_id===s.id);
+  const anos = Array.from(new Set(invsAll.map(i=>(i.mes_factura||'').slice(0,4)).filter(Boolean))).sort().reverse();
+  for(const a of Array.from(fdState.anos)) if(!anos.includes(a)) fdState.anos.delete(a);
+  const invs = invsAll.filter(i=>{
+    if(fdState.anos.size && !fdState.anos.has((i.mes_factura||'').slice(0,4))) return false;
+    if(fdState.meses.size && !fdState.meses.has((i.mes_factura||'').slice(5,7))) return false;
+    return true;
+  });
   const pagas = invs.filter(i=>i.status==='Paga');
   const pendentes = invs.filter(i=>i.status==='Pendente');
   const outras = invs.filter(i=>i.status!=='Paga' && i.status!=='Pendente');
@@ -1175,7 +1182,9 @@ function renderFornecedorDetailShell(){
           <h2 style="font-size:18px;">${escapeHtml(s.nome)}</h2>
           <div class="sub">${s.nipc? 'NIPC '+escapeHtml(s.nipc):'Sem NIPC registado'}</div>
         </div>
-        <div style="display:flex;gap:8px;">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span id="fdAnoMselWrap"></span>
+          <span id="fdMesMselWrap"></span>
           <button class="btn secondary small" onclick="editFornecedor('${s.id}')">Editar</button>
           <button class="btn small" onclick="openFaturaModal(null, '${s.id}')">+ Nova fatura</button>
         </div>
@@ -1212,6 +1221,8 @@ function renderFornecedorDetailShell(){
       <div class="pagination" id="fdPagination"></div>
     </div>
   `;
+  document.getElementById('fdAnoMselWrap').innerHTML = mselHtml('fdAno', anos.map(a=>({value:a,label:a})), 'Todos os anos');
+  document.getElementById('fdMesMselWrap').innerHTML = mselHtml('fdMes', MESES_OPTS, 'Todos os meses');
   renderFdInvoicesTable();
 }
 
@@ -1220,7 +1231,12 @@ function setFdTab(tab){ fdState.tab = tab; fdState.page = 0; renderFornecedorDet
 function renderFdInvoicesTable(){
   const s = supplierById(fdState.supplierId);
   if(!s) return;
-  const invs = state.invoices.filter(i=>i.fornecedor_id===s.id);
+  const invs0 = state.invoices.filter(i=>i.fornecedor_id===s.id);
+  const invs = invs0.filter(i=>{
+    if(fdState.anos.size && !fdState.anos.has((i.mes_factura||'').slice(0,4))) return false;
+    if(fdState.meses.size && !fdState.meses.has((i.mes_factura||'').slice(5,7))) return false;
+    return true;
+  });
   let list;
   if(fdState.tab==='Paga') list = invs.filter(i=>i.status==='Paga');
   else if(fdState.tab==='Pendente') list = invs.filter(i=>i.status==='Pendente');
@@ -1911,6 +1927,8 @@ registerMsel('feAno', ()=>feAnoSel, ()=>{ fePage=0; renderFeFilters(); renderFat
 registerMsel('feMes', ()=>feMesSel, ()=>{ fePage=0; renderFeFilters(); renderFaturasEmitidasTab(); });
 registerMsel('cdAno', ()=>cdState.anos, ()=>{ cdState.page=0; renderClienteDetailShell(); });
 registerMsel('cdMes', ()=>cdState.meses, ()=>{ cdState.page=0; renderClienteDetailShell(); });
+registerMsel('fdAno', ()=>fdState.anos, ()=>{ fdState.page=0; renderFornecedorDetailShell(); });
+registerMsel('fdMes', ()=>fdState.meses, ()=>{ fdState.page=0; renderFornecedorDetailShell(); });
 
 function renderFeFilters(){
   const anos = Array.from(new Set(state.issuedInvoices.map(i=>(i.mes_factura||'').slice(0,4)).filter(Boolean))).sort().reverse();
