@@ -459,6 +459,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.7.1/lib/msal-browser.min.js" crossorigin="anonymous" onerror="this.onerror=null;document.write('&lt;script src=&quot;https://alcdn.msauth.net/browser/3.7.1/js/msal-browser.min.js&quot; crossorigin=&quot;anonymous&quot;&gt;&lt;\/script&gt;')"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous"></script>
 <script>
 const SEED_DATA = {"suppliers": [], "invoices": [], "entidades": ["Ventask", "Crescerá", "Mind & Sparkle"], "tipos": ["Factura", "Nota Crédito", "Recibo"], "statuses": ["Paga", "Pendente", "A confirmar", "Disputa"]};
 </script>
@@ -1431,6 +1432,7 @@ function renderClienteDetailShell(){
         <div style="display:flex;gap:8px;align-items:center;">
           <span id="cdAnoMselWrap"></span>
           <span id="cdMesMselWrap"></span>
+          <button class="btn secondary small" onclick="exportCdInvoicesExcel()">Exportar Excel</button>
           <button class="btn secondary small" onclick="editCliente('${s.id}')">Editar</button>
           <button class="btn small" onclick="openFaturaEmitidaModal(null, '${s.id}')">+ Nova fatura</button>
         </div>
@@ -1503,6 +1505,45 @@ function renderCdInvoicesTable(){
     <span>Página ${cdState.page+1} / ${pages}</span>
     <button ${cdState.page>=pages-1?'disabled':''} onclick="cdState.page++;renderCdInvoicesTable()">›</button>
   `;
+}
+
+function exportCdInvoicesExcel(){
+  const s = clientById(cdState.clientId);
+  if(!s) return;
+  const invs0 = state.issuedInvoices.filter(i=>i.cliente_id===s.id);
+  const invs = invs0.filter(i=>{
+    if(cdState.anos.size && !cdState.anos.has((i.mes_factura||'').slice(0,4))) return false;
+    if(cdState.meses.size && !cdState.meses.has((i.mes_factura||'').slice(5,7))) return false;
+    return true;
+  }).filter(i=>{
+    if(cdState.tab==='Pendente') return i.status==='Pendente';
+    if(cdState.tab==='Paga') return i.status==='Paga';
+    return i.status==='Vencida';
+  }).slice().sort((a,b)=>(b.mes_factura||'').localeCompare(a.mes_factura||''));
+
+  if(!invs.length){ showToast('Não há faturas para exportar com este filtro.'); return; }
+
+  const rows = invs.map(i=>({
+    'NIPC': s.nipc||'',
+    'Cliente': i.cliente_nome||s.nome||'',
+    'Empresa': i.entidade||'',
+    'Estado': i.status||'',
+    'Data vencimento': i.data_vencimento||'',
+    'Tipo': i.tipo||'',
+    'Mês': fmtMonth(i.mes_factura),
+    'Nº Doc': i.numero_doc||'',
+    'Valor': i.valor||0
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:14},{wch:24},{wch:16},{wch:12},{wch:16},{wch:14},{wch:12},{wch:16},{wch:12}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Faturas');
+
+  const anosLabel = cdState.anos.size ? Array.from(cdState.anos).sort().join('-') : 'todos-anos';
+  const mesesLabel = cdState.meses.size ? Array.from(cdState.meses).sort().join('-') : 'todos-meses';
+  const nomeFicheiro = `faturas_${s.nome.replace(/[^a-z0-9]+/gi,'_')}_${anosLabel}_${mesesLabel}.xlsx`;
+  XLSX.writeFile(wb, nomeFicheiro);
 }
 
 function editCliente(id){
