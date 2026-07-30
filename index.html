@@ -1276,8 +1276,11 @@ function renderFornecedorDetailShell(){
   const pagas = invs.filter(i=>i.status==='Paga');
   const pendentes = invs.filter(i=>i.status==='Pendente');
   const outras = invs.filter(i=>i.status!=='Paga' && i.status!=='Pendente');
+  const overdue = invs.filter(i => i.status==='Pendente' && i.data_pgto && i.data_pgto < todayISO());
   const totalPago = pagas.reduce((a,i)=>a+i.valor,0);
   const totalPendente = pendentes.reduce((a,i)=>a+i.valor,0);
+  const totalVencido = overdue.reduce((a,i)=>a+i.valor,0);
+  const totalEmitido = invs.reduce((a,i)=>a+i.valor,0);
 
   detail.innerHTML = `
     <div class="back-link" onclick="showFornecedorList()">← Voltar aos fornecedores</div>
@@ -1310,6 +1313,8 @@ function renderFornecedorDetailShell(){
     <div class="grid-stats" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));">
       <div class="stat"><div class="label">Valor Pago</div><div class="value green">${fmtCurrency(totalPago)}</div><div class="muted" style="font-size:12px;margin-top:2px;">${pagas.length} fatura${pagas.length===1?'':'s'}</div></div>
       <div class="stat"><div class="label">Valor Pendente</div><div class="value amber">${fmtCurrency(totalPendente)}</div><div class="muted" style="font-size:12px;margin-top:2px;">${pendentes.length} fatura${pendentes.length===1?'':'s'}</div></div>
+      <div class="stat"><div class="label">Valor Vencido</div><div class="value ${overdue.length?'red':'green'}">${fmtCurrency(totalVencido)}</div><div class="muted" style="font-size:12px;margin-top:2px;">${overdue.length} fatura${overdue.length===1?'':'s'}</div></div>
+      <div class="stat"><div class="label">Total Emitido</div><div class="value">${fmtCurrency(totalEmitido)}</div><div class="muted" style="font-size:12px;margin-top:2px;">${invs.length} fatura${invs.length===1?'':'s'}</div></div>
     </div>
     <div class="card">
       <div class="tag-row">
