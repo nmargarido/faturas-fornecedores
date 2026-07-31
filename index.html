@@ -1293,6 +1293,8 @@ function renderFornecedorDetailShell(){
         <div style="display:flex;gap:8px;align-items:center;">
           <span id="fdAnoMselWrap"></span>
           <span id="fdMesMselWrap"></span>
+          <button class="btn secondary small" onclick="exportFdInvoicesExcel()">Exportar Excel</button>
+          <button class="btn secondary small" onclick="exportFdInvoicesPDF()">Exportar PDF</button>
           <button class="btn secondary small" onclick="editFornecedor('${s.id}')">Editar</button>
           <button class="btn small" onclick="openFaturaModal(null, '${s.id}')">+ Nova fatura</button>
         </div>
@@ -1365,6 +1367,134 @@ function renderFdInvoicesTable(){
     <span>Página ${fdState.page+1} / ${pages}</span>
     <button ${fdState.page>=pages-1?'disabled':''} onclick="fdState.page++;renderFdInvoicesTable()">›</button>
   `;
+}
+
+function exportFdInvoicesExcel(){
+  const s = supplierById(fdState.supplierId);
+  if(!s) return;
+  const invs0 = state.invoices.filter(i=>i.fornecedor_id===s.id);
+  const invs = invs0.filter(i=>{
+    if(fdState.anos.size && !fdState.anos.has((i.mes_factura||'').slice(0,4))) return false;
+    if(fdState.meses.size && !fdState.meses.has((i.mes_factura||'').slice(5,7))) return false;
+    return true;
+  }).filter(i=>{
+    if(fdState.tab==='Paga') return i.status==='Paga';
+    if(fdState.tab==='Pendente') return i.status==='Pendente';
+    return i.status!=='Paga' && i.status!=='Pendente';
+  }).slice().sort((a,b)=>(b.mes_factura||'').localeCompare(a.mes_factura||''));
+
+  if(!invs.length){ showToast('Não há faturas para exportar com este filtro.'); return; }
+
+  const rows = invs.map(i=>({
+    'NIPC': s.nipc||'',
+    'Fornecedor': i.fornecedor_nome||s.nome||'',
+    'Empresa': i.entidade||'',
+    'Estado': i.status||'',
+    'Data pgto / prevista': i.data_pgto||'',
+    'Tipo': i.tipo||'',
+    'Mês': fmtMonth(i.mes_factura),
+    'Nº Doc': i.numero_doc||'',
+    'Valor': i.valor||0
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:14},{wch:24},{wch:16},{wch:12},{wch:16},{wch:14},{wch:12},{wch:16},{wch:12}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Faturas');
+
+  const anosLabel = fdState.anos.size ? Array.from(fdState.anos).sort().join('-') : 'todos-anos';
+  const mesesLabel = fdState.meses.size ? Array.from(fdState.meses).sort().join('-') : 'todos-meses';
+  const nomeFicheiro = `faturas_${s.nome.replace(/[^a-z0-9]+/gi,'_')}_${anosLabel}_${mesesLabel}.xlsx`;
+  XLSX.writeFile(wb, nomeFicheiro);
+}
+
+function exportFdInvoicesPDF(){
+  const s = supplierById(fdState.supplierId);
+  if(!s) return;
+  const invs0 = state.invoices.filter(i=>i.fornecedor_id===s.id);
+  const invs = invs0.filter(i=>{
+    if(fdState.anos.size && !fdState.anos.has((i.mes_factura||'').slice(0,4))) return false;
+    if(fdState.meses.size && !fdState.meses.has((i.mes_factura||'').slice(5,7))) return false;
+    return true;
+  }).filter(i=>{
+    if(fdState.tab==='Paga') return i.status==='Paga';
+    if(fdState.tab==='Pendente') return i.status==='Pendente';
+    return i.status!=='Paga' && i.status!=='Pendente';
+  }).slice().sort((a,b)=>(b.mes_factura||'').localeCompare(a.mes_factura||''));
+
+  if(!invs.length){ showToast('Não há faturas para exportar com este filtro.'); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+
+  const fornecedorKey = (s.nome||'').toLowerCase();
+  const overrideKey = Object.keys(CLIENT_LOGO_OVERRIDES).find(k=>fornecedorKey.includes(k));
+  const logoParaPdf = overrideKey ? CLIENT_LOGO_OVERRIDES[overrideKey] : LOGO_BASE64;
+  doc.addImage(logoParaPdf, 'JPEG', 14, 12, 22, 24);
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(16);
+  doc.setTextColor(30,30,30);
+  doc.text('Extrato de Faturas', pageW-14, 20, {align:'right'});
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(9);
+  doc.setTextColor(110,110,110);
+  doc.text('Emitido em ' + fmtDate(todayISO()), pageW-14, 26, {align:'right'});
+
+  let y = 44;
+  doc.setDrawColor(226,229,234);
+  doc.line(14, y, pageW-14, y);
+  y += 8;
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(12);
+  doc.setTextColor(30,30,30);
+  doc.text(s.nome||'—', 14, y);
+  y += 6;
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(9.5);
+  doc.setTextColor(90,90,90);
+  if(s.nipc){ doc.text('NIPC ' + s.nipc, 14, y); y += 5; }
+  const morada = [s.morada, s.numero_porta].filter(Boolean).join(', ');
+  if(morada){ doc.text(morada, 14, y); y += 5; }
+  const localidade = [s.codigo_postal, s.localidade].filter(Boolean).join(' ');
+  if(localidade){ doc.text(localidade, 14, y); y += 5; }
+
+  const anosLabel = fdState.anos.size ? Array.from(fdState.anos).sort().join(', ') : 'Todos';
+  const mesesLabel = fdState.meses.size ? Array.from(fdState.meses).sort().map(m=>MESES_OPTS.find(o=>o.value===m)?.label||m).join(', ') : 'Todos';
+  const tabLabel = fdState.tab==='Paga' ? 'Pagas' : (fdState.tab==='Pendente' ? 'Pendentes' : 'Outras');
+  doc.setFontSize(9);
+  doc.text('Período: ' + anosLabel + '  ·  Meses: ' + mesesLabel + '  ·  Estado: ' + tabLabel, 14, y+3);
+  y += 10;
+
+  const total = invs.reduce((a,i)=>a+(i.valor||0),0);
+
+  doc.autoTable({
+    startY: y,
+    head: [['Mês','Nº Doc','Tipo','Empresa','Estado','Data pgto / prevista','Valor']],
+    body: invs.map(i=>[
+      fmtMonth(i.mes_factura),
+      i.numero_doc||'—',
+      i.tipo||'—',
+      i.entidade||'—',
+      i.status||'—',
+      i.data_pgto? fmtDate(i.data_pgto):'—',
+      fmtCurrency(i.valor)
+    ]),
+    styles:{ font:'helvetica', fontSize:9, textColor:[30,30,30], cellPadding:2.5 },
+    headStyles:{ fillColor:[20,33,61], textColor:255, fontStyle:'bold' },
+    alternateRowRowStyles:{ fillColor:[245,246,248] },
+    columnStyles:{ 6:{halign:'right'} },
+    margin:{ left:14, right:14 },
+    foot:[['','','','','','Total', fmtCurrency(total)]],
+    footStyles:{ fillColor:[238,240,243], textColor:[30,30,30], fontStyle:'bold', halign:'right' }
+  });
+
+  const anosFile = fdState.anos.size ? Array.from(fdState.anos).sort().join('-') : 'todos-anos';
+  const mesesFile = fdState.meses.size ? Array.from(fdState.meses).sort().join('-') : 'todos-meses';
+  const nomeFicheiro = `faturas_${s.nome.replace(/[^a-z0-9]+/gi,'_')}_${anosFile}_${mesesFile}.pdf`;
+  doc.save(nomeFicheiro);
 }
 
 function editFornecedor(id){
