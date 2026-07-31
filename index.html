@@ -411,6 +411,14 @@
       </div>
       <div class="form-row" style="grid-column:1/-1;"><label id="finDataLabel">Data prevista de pagamento</label><input type="date" id="finDataPgto"></div>
       <div class="form-row" style="grid-column:1/-1;"><label>Notas</label><textarea id="finNotas" rows="2"></textarea></div>
+      <div class="form-row" style="grid-column:1/-1;">
+        <label>Anexo (PDF/imagem, máx. 4MB)</label>
+        <div id="finAnexoAtual" style="display:none;margin-bottom:6px;font-size:13px;">
+          <a href="#" id="finAnexoAtualLink" target="_blank" rel="noopener">📎 Ver anexo atual</a>
+          <button type="button" class="btn small secondary" id="finAnexoRemoverBtn" style="margin-left:8px;">Remover</button>
+        </div>
+        <input type="file" id="finAnexoFile" accept=".pdf,.jpg,.jpeg,.png">
+      </div>
     </div>
     <div class="modal-actions">
       <button class="btn danger" id="btnDeleteFatura" style="display:none;margin-right:auto;">Apagar</button>
@@ -490,6 +498,14 @@
       </div>
       <div class="form-row" style="grid-column:1/-1;"><label id="feinDataLabel">Data de pagamento</label><input type="date" id="feinDataPgto"></div>
       <div class="form-row" style="grid-column:1/-1;"><label>Notas</label><textarea id="feinNotas" rows="2"></textarea></div>
+      <div class="form-row" style="grid-column:1/-1;">
+        <label>Anexo (PDF/imagem, máx. 4MB)</label>
+        <div id="feinAnexoAtual" style="display:none;margin-bottom:6px;font-size:13px;">
+          <a href="#" id="feinAnexoAtualLink" target="_blank" rel="noopener">📎 Ver anexo atual</a>
+          <button type="button" class="btn small secondary" id="feinAnexoRemoverBtn" style="margin-left:8px;">Remover</button>
+        </div>
+        <input type="file" id="feinAnexoFile" accept=".pdf,.jpg,.jpeg,.png">
+      </div>
     </div>
     <div class="modal-actions">
       <button class="btn danger" id="btnDeleteFaturaEmitida" style="display:none;margin-right:auto;">Apagar</button>
@@ -522,7 +538,7 @@ const MSAL_CONFIG = {
   },
   cache: { cacheLocation: "localStorage", storeAuthStateInCookie: false }
 };
-const GRAPH_SCOPES = ["Sites.Manage.All", "Sites.ReadWrite.All", "User.Read"];
+const GRAPH_SCOPES = ["Sites.Manage.All", "Sites.ReadWrite.All", "Files.ReadWrite.All", "User.Read"];
 const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
 const SITE_HOSTNAME = "ventaskpt.sharepoint.com";
 const SITE_PATH = "/sites/NM-SharePoint";
@@ -530,6 +546,9 @@ const FORNECEDORES_LIST_NAME = "Fornecedores";
 const FATURAS_LIST_NAME = "Faturas";
 const CLIENTES_LIST_NAME = "Clientes";
 const FATURAS_EMITIDAS_LIST_NAME = "FaturasEmitidas";
+const ONEDRIVE_OWNER_UPN = "nuno.margarido@ventask.pt";
+const ONEDRIVE_ROOT_FOLDER = "FaturasApp";
+const ONEDRIVE_MAX_SIZE = 4 * 1024 * 1024; // 4MB (upload simples)
 
 let msalInstance = null;
 let currentAccount = null;
@@ -688,7 +707,41 @@ async function graphBatch(requests){
   return results;
 }
 
-/* ====================== SITE / LIST DISCOVERY ====================== */
+/* ====================== ONEDRIVE ANEXOS ====================== */
+async function uploadFaturaAnexo(file, subfolder, baseName){
+  if(!file) return null;
+  if(file.size > ONEDRIVE_MAX_SIZE){
+    throw new Error('Ficheiro demasiado grande (máx. 4MB).');
+  }
+  const token = await getGraphToken();
+  const safeName = (baseName||'anexo').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9 ._-]+/g,'_').trim() || 'anexo';
+  const extMatch = /\.[a-zA-Z0-9]+$/.exec(file.name||'');
+  const ext = extMatch ? extMatch[0] : '';
+  const filename = `${safeName}_${Date.now()}${ext}`;
+  const path = `/users/${encodeURIComponent(ONEDRIVE_OWNER_UPN)}/drive/root:/${ONEDRIVE_ROOT_FOLDER}/${subfolder}/${encodeURIComponent(filename)}:/content`;
+  let res = await fetch(GRAPH_BASE + path, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': file.type || 'application/octet-stream' },
+    body: file
+  });
+  if(res.status === 429){
+    const retryAfter = parseFloat(res.headers.get('Retry-After')||'2');
+    await new Promise(r=>setTimeout(r, retryAfter*1000));
+    res = await fetch(GRAPH_BASE + path, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': file.type || 'application/octet-stream' },
+      body: file
+    });
+  }
+  if(!res.ok){
+    const t = await res.text().catch(()=> '');
+    throw new Error(`Falha ao enviar anexo (Graph ${res.status}): ${t.slice(0,200)}`);
+  }
+  const data = await res.json();
+  return { url: data.webUrl || '', nome: filename };
+}
+
+
 async function getSiteId(){
   const cached = localStorage.getItem('sp_site_id');
   if(cached){ return cached; }
@@ -782,6 +835,7 @@ function mapSpToInvoice(item){
     status: f.Status || 'A confirmar',
     data_pgto: f.DataPagamento ? f.DataPagamento.slice(0,10) : null,
     notas: f.Notas || '',
+    anexo_url: f.AnexoUrl || '', anexo_nome: f.AnexoNome || '',
     criado_em: item.createdDateTime || null,
     criado_por: (item.createdBy && item.createdBy.user && item.createdBy.user.displayName) || '',
     modificado_em: item.lastModifiedDateTime || null,
@@ -794,7 +848,7 @@ function invoiceToSpFields(i){
     FornecedorNome: i.fornecedor_nome||'', FornecedorNIPC: i.fornecedor_nipc||'',
     FornecedorLegacyId: i.fornecedor_id||'', Entidade: i.entidade||'', Tipo: i.tipo||'',
     NumeroDoc: i.numero_doc||'', Valor: i.valor||0, Status: i.status||'',
-    Notas: i.notas||''
+    Notas: i.notas||'', AnexoUrl: i.anexo_url||'', AnexoNome: i.anexo_nome||''
   };
   if(i.mes_factura) out.MesFactura = new Date(i.mes_factura+'T00:00:00Z').toISOString();
   if(i.data_pgto) out.DataPagamento = new Date(i.data_pgto+'T00:00:00Z').toISOString();
@@ -834,6 +888,7 @@ function mapSpToFaturaEmitida(item){
     status: f.Status || 'Pendente',
     data_pgto: f.DataPagamento ? f.DataPagamento.slice(0,10) : null,
     notas: f.Notas || '',
+    anexo_url: f.AnexoUrl || '', anexo_nome: f.AnexoNome || '',
     criado_em: item.createdDateTime || null,
     criado_por: (item.createdBy && item.createdBy.user && item.createdBy.user.displayName) || '',
     modificado_em: item.lastModifiedDateTime || null,
@@ -846,7 +901,7 @@ function faturaEmitidaToSpFields(i){
     FornecedorNome: i.cliente_nome||'', FornecedorNIPC: i.cliente_nipc||'',
     FornecedorLegacyId: i.cliente_id||'', Entidade: i.entidade||'', Tipo: i.tipo||'',
     NumeroDoc: i.numero_doc||'', Valor: i.valor||0, Status: i.status||'',
-    Notas: i.notas||''
+    Notas: i.notas||'', AnexoUrl: i.anexo_url||'', AnexoNome: i.anexo_nome||''
   };
   if(i.mes_factura) out.MesFactura = new Date(i.mes_factura+'T00:00:00Z').toISOString();
   if(i.data_emissao) out.DataEmissao = new Date(i.data_emissao+'T00:00:00Z').toISOString();
@@ -988,7 +1043,7 @@ async function resumeBulkImport(){
     setAuthGateSpinner(false);
     showToast(`${missing.length} faturas importadas`);
 
-    const spInv2 = await fetchAllListItems(faturasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,Valor,Status,DataPagamento,Notas');
+    const spInv2 = await fetchAllListItems(faturasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,Valor,Status,DataPagamento,Notas,AnexoUrl,AnexoNome');
     mapInvoicesWithFornecedorIds(spInv2);
     populateAnoFilter();
     renderDashboard(); renderFaturasTab(); renderRelatorios(); renderAccountStatus();
@@ -1030,7 +1085,7 @@ async function startApp(){
       state.clients = spClients.map(mapSpToClient);
     }
     if(faturasEmitidasListId){
-      const spFe = await fetchAllListItems(faturasEmitidasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,DataEmissao,DataVencimento,Valor,Status,DataPagamento,Notas');
+      const spFe = await fetchAllListItems(faturasEmitidasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,DataEmissao,DataVencimento,Valor,Status,DataPagamento,Notas,AnexoUrl,AnexoNome');
       mapIssuedInvoicesWithClienteIds(spFe);
     }
 
@@ -1046,7 +1101,7 @@ async function startApp(){
     }
 
     setAuthGateMsg('A carregar faturas...');
-    const spInvoices = await fetchAllListItems(faturasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,Valor,Status,DataPagamento,Notas');
+    const spInvoices = await fetchAllListItems(faturasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,Valor,Status,DataPagamento,Notas,AnexoUrl,AnexoNome');
     if(spInvoices.length === 0){
       setAuthGateSpinner(false);
       setAuthGateMsg('A lista "Faturas" existe mas está vazia. Importar os dados iniciais (12 093 faturas)?');
@@ -1093,7 +1148,7 @@ function mapIssuedInvoicesWithClienteIds(spItems){
 async function finishStartup(){
   // reload invoices fresh (covers the just-imported case) with fornecedor_id resolved
   if(!state.invoices.length){
-    const spInvoices = await fetchAllListItems(faturasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,Valor,Status,DataPagamento,Notas');
+    const spInvoices = await fetchAllListItems(faturasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,Valor,Status,DataPagamento,Notas,AnexoUrl,AnexoNome');
     mapInvoicesWithFornecedorIds(spInvoices);
   }
   document.getElementById('authGate').style.display = 'none';
@@ -1255,6 +1310,7 @@ function faturaRowHtmlWithNipc(i, s){
     <td>${escapeHtml(i.numero_doc||'—')}</td>
     <td class="num">${fmtCurrency(i.valor)}</td>
     <td style="white-space:nowrap;">
+      ${i.anexo_url? `<a href="${escapeHtml(i.anexo_url)}" target="_blank" rel="noopener" title="Ver anexo">📎</a>` : ''}
       ${i.status!=='Paga' ? `<button class="btn small secondary" onclick="quickMarkPaid('${i.id}')">Marcar paga</button>` : ''}
       <button class="btn small secondary" onclick="editFatura('${i.id}')">Editar</button>
     </td>
@@ -1633,6 +1689,7 @@ function faturaEmitidaRowHtmlWithNipc(i, s){
     <td>${escapeHtml(i.numero_doc||'—')}</td>
     <td class="num">${fmtCurrency(i.valor)}</td>
     <td style="white-space:nowrap;">
+      ${i.anexo_url? `<a href="${escapeHtml(i.anexo_url)}" target="_blank" rel="noopener" title="Ver anexo">📎</a>` : ''}
       ${i.status!=='Paga' ? `<button class="btn small secondary" onclick="quickMarkPaidEmitida('${i.id}')">Marcar paga</button>` : ''}
       <button class="btn small secondary" onclick="editFaturaEmitida('${i.id}')">Editar</button>
     </td>
@@ -1988,6 +2045,7 @@ function faturaRowHtml(i){
     <td>${statusBadge(i.status)}</td>
     <td>${isOverdue? '<span class="badge overdue">'+fmtDate(i.data_pgto)+'</span>' : fmtDate(i.data_pgto)}</td>
     <td style="white-space:nowrap;">
+      ${i.anexo_url? `<a href="${escapeHtml(i.anexo_url)}" target="_blank" rel="noopener" title="Ver anexo">📎</a>` : ''}
       ${i.status!=='Paga' ? `<button class="btn small secondary" onclick="quickMarkPaid('${i.id}')">Marcar paga</button>` : ''}
       <button class="btn small secondary" onclick="editFatura('${i.id}')">Editar</button>
     </td>
@@ -2104,10 +2162,20 @@ function openFaturaModal(invId, presetFornecedorId){
   document.getElementById('finStatus').value = inv? inv.status : 'Pendente';
   document.getElementById('finDataPgto').value = inv? (inv.data_pgto||'') : '';
   document.getElementById('finNotas').value = inv? (inv.notas||'') : '';
+  document.getElementById('finAnexoFile').value = '';
+  document.getElementById('finAnexoFile').dataset.remover = '';
+  const finAnexoUrl = inv? (inv.anexo_url||'') : '';
+  document.getElementById('finAnexoAtual').style.display = finAnexoUrl ? 'block' : 'none';
+  document.getElementById('finAnexoAtualLink').href = finAnexoUrl || '#';
   document.getElementById('btnDeleteFatura').style.display = inv ? 'inline-block' : 'none';
   updateFinDataLabel();
   openModal('modalFatura');
 }
+document.getElementById('finAnexoRemoverBtn').addEventListener('click', ()=>{
+  document.getElementById('finAnexoFile').dataset.remover = '1';
+  document.getElementById('finAnexoAtual').style.display = 'none';
+  showToast('Anexo será removido ao guardar');
+});
 function editFatura(id){ openFaturaModal(id, null); }
 
 function updateFinDataLabel(){
@@ -2161,6 +2229,20 @@ document.getElementById('btnSaveFatura').addEventListener('click', async ()=>{
     }
 
     const mes = document.getElementById('finMesFactura').value;
+    const existingInvForAnexo = document.getElementById('finId').value ? state.invoices.find(i=>i.id===document.getElementById('finId').value) : null;
+    let anexoUrl = existingInvForAnexo ? (existingInvForAnexo.anexo_url||'') : '';
+    let anexoNome = existingInvForAnexo ? (existingInvForAnexo.anexo_nome||'') : '';
+    if(document.getElementById('finAnexoFile').dataset.remover === '1'){
+      anexoUrl = ''; anexoNome = '';
+    }
+    const anexoFileInput = document.getElementById('finAnexoFile');
+    if(anexoFileInput.files && anexoFileInput.files[0]){
+      btn.textContent = 'A enviar anexo...';
+      const uploaded = await uploadFaturaAnexo(anexoFileInput.files[0], 'Fornecedores', finalNome + '_' + (document.getElementById('finNumeroDoc').value.trim()||'fatura'));
+      anexoUrl = uploaded.url; anexoNome = uploaded.nome;
+      btn.textContent = 'A guardar...';
+    }
+
     const data = {
       fornecedor_id: finalFornecedorId, fornecedor_nome: finalNome, fornecedor_nipc: finalNipc,
       entidade: document.getElementById('finEntidade').value,
@@ -2171,6 +2253,7 @@ document.getElementById('btnSaveFatura').addEventListener('click', async ()=>{
       status: document.getElementById('finStatus').value,
       data_pgto: document.getElementById('finDataPgto').value || null,
       notas: document.getElementById('finNotas').value.trim(),
+      anexo_url: anexoUrl, anexo_nome: anexoNome,
     };
 
     const id = document.getElementById('finId').value;
@@ -2357,6 +2440,7 @@ function faturaEmitidaRowHtml(i){
     <td>${statusBadge(i.status)}</td>
     <td>${isOverdue? '<span class="badge overdue">'+fmtDate(i.data_vencimento)+'</span>' : fmtDate(i.data_vencimento)}<br>${diasParaVencerLabel(i)}</td>
     <td style="white-space:nowrap;">
+      ${i.anexo_url? `<a href="${escapeHtml(i.anexo_url)}" target="_blank" rel="noopener" title="Ver anexo">📎</a>` : ''}
       ${i.status!=='Paga' ? `<button class="btn small secondary" onclick="quickMarkPaidEmitida('${i.id}')">Marcar paga</button>` : ''}
       <button class="btn small secondary" onclick="editFaturaEmitida('${i.id}')">Editar</button>
     </td>
@@ -2413,10 +2497,20 @@ function openFaturaEmitidaModal(invId, presetClienteId){
   document.getElementById('feinStatus').value = inv? inv.status : 'Pendente';
   document.getElementById('feinDataPgto').value = inv? (inv.data_pgto||'') : '';
   document.getElementById('feinNotas').value = inv? (inv.notas||'') : '';
+  document.getElementById('feinAnexoFile').value = '';
+  document.getElementById('feinAnexoFile').dataset.remover = '';
+  const feinAnexoUrl = inv? (inv.anexo_url||'') : '';
+  document.getElementById('feinAnexoAtual').style.display = feinAnexoUrl ? 'block' : 'none';
+  document.getElementById('feinAnexoAtualLink').href = feinAnexoUrl || '#';
   document.getElementById('btnDeleteFaturaEmitida').style.display = inv ? 'inline-block' : 'none';
   updateFeinDataLabel();
   openModal('modalFaturaEmitida');
 }
+document.getElementById('feinAnexoRemoverBtn').addEventListener('click', ()=>{
+  document.getElementById('feinAnexoFile').dataset.remover = '1';
+  document.getElementById('feinAnexoAtual').style.display = 'none';
+  showToast('Anexo será removido ao guardar');
+});
 function editFaturaEmitida(id){ openFaturaEmitidaModal(id, null); }
 
 function updateFeinDataLabel(){
@@ -2470,6 +2564,20 @@ document.getElementById('btnSaveFaturaEmitida').addEventListener('click', async 
     }
 
     const mes = document.getElementById('feinMesFactura').value;
+    const existingFeinForAnexo = document.getElementById('feinId').value ? state.issuedInvoices.find(i=>i.id===document.getElementById('feinId').value) : null;
+    let anexoUrlFe = existingFeinForAnexo ? (existingFeinForAnexo.anexo_url||'') : '';
+    let anexoNomeFe = existingFeinForAnexo ? (existingFeinForAnexo.anexo_nome||'') : '';
+    if(document.getElementById('feinAnexoFile').dataset.remover === '1'){
+      anexoUrlFe = ''; anexoNomeFe = '';
+    }
+    const feinAnexoFileInput = document.getElementById('feinAnexoFile');
+    if(feinAnexoFileInput.files && feinAnexoFileInput.files[0]){
+      btn.textContent = 'A enviar anexo...';
+      const uploadedFe = await uploadFaturaAnexo(feinAnexoFileInput.files[0], 'ClientesEmitidas', finalNome + '_' + (document.getElementById('feinNumeroDoc').value.trim()||'fatura'));
+      anexoUrlFe = uploadedFe.url; anexoNomeFe = uploadedFe.nome;
+      btn.textContent = 'A guardar...';
+    }
+
     const data = {
       cliente_id: finalClienteId, cliente_nome: finalNome, cliente_nipc: finalNipc,
       entidade: document.getElementById('feinEntidade').value,
@@ -2482,6 +2590,7 @@ document.getElementById('btnSaveFaturaEmitida').addEventListener('click', async 
       status: document.getElementById('feinStatus').value,
       data_pgto: document.getElementById('feinDataPgto').value || null,
       notas: document.getElementById('feinNotas').value.trim(),
+      anexo_url: anexoUrlFe, anexo_nome: anexoNomeFe,
     };
 
     const id = document.getElementById('feinId').value;
@@ -2626,7 +2735,7 @@ document.getElementById('btnRefreshData').addEventListener('click', async ()=>{
   try{
     const spSup = await fetchAllListItems(fornecedoresListId, 'LegacyId,Title,field_1,field_2,field_3,field_4,field_5,field_6,field_7,field_8,field_9,field_10,field_11,field_12,field_13');
     state.suppliers = spSup.map(mapSpToSupplier);
-    const spInv = await fetchAllListItems(faturasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,Valor,Status,DataPagamento,Notas');
+    const spInv = await fetchAllListItems(faturasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,Valor,Status,DataPagamento,Notas,AnexoUrl,AnexoNome');
     mapInvoicesWithFornecedorIds(spInv);
     populateAnoFilter();
     renderDashboard(); renderFornecedoresGrid(); renderFaturasTab(); renderRelatorios(); renderAccountStatus();
