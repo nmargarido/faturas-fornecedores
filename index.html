@@ -1468,6 +1468,33 @@ function exportFdInvoicesExcel(){
   XLSX.writeFile(wb, nomeFicheiro);
 }
 
+function drawPdfSummaryBoxes(doc, x, y, w, boxes){
+  const gap = 4;
+  const boxW = (w - gap*(boxes.length-1)) / boxes.length;
+  const boxH = 20;
+  const colors = { green:[21,128,61], amber:[180,83,9], red:[185,28,28], gray:[30,30,30] };
+  boxes.forEach((b,idx)=>{
+    const bx = x + idx*(boxW+gap);
+    doc.setDrawColor(226,229,234);
+    doc.setFillColor(250,250,251);
+    doc.roundedRect(bx, y, boxW, boxH, 1.5, 1.5, 'FD');
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(8);
+    doc.setTextColor(110,110,110);
+    doc.text(b.label, bx+4, y+7);
+    const c = colors[b.color] || colors.gray;
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(12);
+    doc.setTextColor(c[0],c[1],c[2]);
+    doc.text(b.value, bx+4, y+14);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(140,140,140);
+    doc.text(b.count, bx+4, y+18.5);
+  });
+  return y + boxH;
+}
+
 function exportFdInvoicesPDF(){
   const s = supplierById(fdState.supplierId);
   if(!s) return;
@@ -1485,7 +1512,7 @@ function exportFdInvoicesPDF(){
   if(!invs.length){ showToast('Não há faturas para exportar com este filtro.'); return; }
 
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'landscape' });
   const pageW = doc.internal.pageSize.getWidth();
 
   const fornecedorKey = (s.nome||'').toLowerCase();
@@ -1527,6 +1554,27 @@ function exportFdInvoicesPDF(){
   doc.setFontSize(9);
   doc.text('Período: ' + anosLabel + '  ·  Meses: ' + mesesLabel + '  ·  Estado: ' + tabLabel, 14, y+3);
   y += 10;
+
+  const invsPeriodo = invs0.filter(i=>{
+    if(fdState.anos.size && !fdState.anos.has((i.mes_factura||'').slice(0,4))) return false;
+    if(fdState.meses.size && !fdState.meses.has((i.mes_factura||'').slice(5,7))) return false;
+    return true;
+  });
+  const pagasP = invsPeriodo.filter(i=>i.status==='Paga');
+  const pendentesP = invsPeriodo.filter(i=>i.status==='Pendente');
+  const overdueP = invsPeriodo.filter(i=>i.status==='Pendente' && i.data_pgto && i.data_pgto < todayISO());
+  const totalPagoP = pagasP.reduce((a,i)=>a+(i.valor||0),0);
+  const totalPendenteP = pendentesP.reduce((a,i)=>a+(i.valor||0),0);
+  const totalVencidoP = overdueP.reduce((a,i)=>a+(i.valor||0),0);
+  const totalEmitidoP = invsPeriodo.reduce((a,i)=>a+(i.valor||0),0);
+
+  y = drawPdfSummaryBoxes(doc, 14, y, pageW-28, [
+    { label:'Valor Pago', value:fmtCurrency(totalPagoP), count:`${pagasP.length} fatura${pagasP.length===1?'':'s'}`, color:'green' },
+    { label:'Valor Pendente', value:fmtCurrency(totalPendenteP), count:`${pendentesP.length} fatura${pendentesP.length===1?'':'s'}`, color:'amber' },
+    { label:'Valor Vencido', value:fmtCurrency(totalVencidoP), count:`${overdueP.length} fatura${overdueP.length===1?'':'s'}`, color: overdueP.length? 'red':'green' },
+    { label:'Total Emitido', value:fmtCurrency(totalEmitidoP), count:`${invsPeriodo.length} fatura${invsPeriodo.length===1?'':'s'}`, color:'gray' }
+  ]);
+  y += 8;
 
   const total = invs.reduce((a,i)=>a+(i.valor||0),0);
   const totalLabel = fdState.tab==='Paga' ? 'Total Pago' : (fdState.tab==='Pendente' ? 'Total Pendente' : 'Total');
@@ -1871,7 +1919,7 @@ function exportCdInvoicesPDF(){
   if(!invs.length){ showToast('Não há faturas para exportar com este filtro.'); return; }
 
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'landscape' });
   const pageW = doc.internal.pageSize.getWidth();
 
   const clienteKey = (s.nome||'').toLowerCase();
@@ -1913,6 +1961,27 @@ function exportCdInvoicesPDF(){
   doc.setFontSize(9);
   doc.text('Período: ' + anosLabel + '  ·  Meses: ' + mesesLabel + '  ·  Estado: ' + tabLabel, 14, y+3);
   y += 10;
+
+  const invsPeriodo = invs0.filter(i=>{
+    if(cdState.anos.size && !cdState.anos.has((i.mes_factura||'').slice(0,4))) return false;
+    if(cdState.meses.size && !cdState.meses.has((i.mes_factura||'').slice(5,7))) return false;
+    return true;
+  });
+  const pagasP = invsPeriodo.filter(i=>i.status==='Paga');
+  const pendentesP = invsPeriodo.filter(i=>i.status==='Pendente');
+  const overdueP = invsPeriodo.filter(i=>i.status==='Vencida' || (i.status==='Pendente' && i.data_vencimento && i.data_vencimento < todayISO()));
+  const totalRecebidoP = pagasP.reduce((a,i)=>a+(i.valor||0),0);
+  const totalPendenteP = pendentesP.reduce((a,i)=>a+(i.valor||0),0);
+  const totalVencidoP = overdueP.reduce((a,i)=>a+(i.valor||0),0);
+  const totalEmitidoP = invsPeriodo.reduce((a,i)=>a+(i.valor||0),0);
+
+  y = drawPdfSummaryBoxes(doc, 14, y, pageW-28, [
+    { label:'Valor Recebido', value:fmtCurrency(totalRecebidoP), count:`${pagasP.length} fatura${pagasP.length===1?'':'s'}`, color:'green' },
+    { label:'Valor Pendente', value:fmtCurrency(totalPendenteP), count:`${pendentesP.length} fatura${pendentesP.length===1?'':'s'}`, color:'amber' },
+    { label:'Valor Vencido', value:fmtCurrency(totalVencidoP), count:`${overdueP.length} fatura${overdueP.length===1?'':'s'}`, color: overdueP.length? 'red':'green' },
+    { label:'Total Emitido', value:fmtCurrency(totalEmitidoP), count:`${invsPeriodo.length} fatura${invsPeriodo.length===1?'':'s'}`, color:'gray' }
+  ]);
+  y += 8;
 
   const total = invs.reduce((a,i)=>a+(i.valor||0),0);
   const totalLabel = cdState.tab==='Pendente' ? 'Total Pendente' : (cdState.tab==='Paga' ? 'Total Pago' : 'Total Vencido');
