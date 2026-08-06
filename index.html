@@ -68,6 +68,14 @@
   .badge.overdue{background:var(--red-bg);color:var(--red);}
   .muted{color:var(--muted);}
   .pill{display:inline-block;padding:2px 8px;border-radius:6px;background:var(--gray-bg);font-size:11.5px;font-weight:600;color:var(--text);}
+  .timeline{max-height:190px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:4px 12px;background:var(--gray-bg);}
+  .timeline-item{padding:8px 0;border-bottom:1px dashed var(--border);font-size:12.5px;}
+  .timeline-item:last-child{border-bottom:none;}
+  .timeline-item .tl-top{display:flex;justify-content:space-between;gap:8px;margin-bottom:2px;}
+  .timeline-item .tl-who{font-weight:700;color:var(--navy);}
+  .timeline-item .tl-when{color:var(--muted);font-size:11px;white-space:nowrap;}
+  .timeline-item .tl-resumo{white-space:pre-line;line-height:1.5;color:var(--text);}
+  .timeline-empty{color:var(--muted);font-size:12.5px;padding:10px 2px;}
   .grid-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px;}
   .dash-recent-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
   .stat{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);}
@@ -419,6 +427,10 @@
         </div>
         <input type="file" id="finAnexoFile" accept=".pdf,.jpg,.jpeg,.png">
       </div>
+      <div class="form-row" style="grid-column:1/-1;display:none;" id="finTimelineWrap">
+        <label>Histórico de alterações</label>
+        <div id="finTimeline" class="timeline"></div>
+      </div>
     </div>
     <div class="modal-actions">
       <button class="btn danger" id="btnDeleteFatura" style="display:none;margin-right:auto;">Apagar</button>
@@ -506,6 +518,10 @@
         </div>
         <input type="file" id="feinAnexoFile" accept=".pdf,.jpg,.jpeg,.png">
       </div>
+      <div class="form-row" style="grid-column:1/-1;display:none;" id="feinTimelineWrap">
+        <label>Histórico de alterações</label>
+        <div id="feinTimeline" class="timeline"></div>
+      </div>
     </div>
     <div class="modal-actions">
       <button class="btn danger" id="btnDeleteFaturaEmitida" style="display:none;margin-right:auto;">Apagar</button>
@@ -546,6 +562,7 @@ const FORNECEDORES_LIST_NAME = "Fornecedores";
 const FATURAS_LIST_NAME = "Faturas";
 const CLIENTES_LIST_NAME = "Clientes";
 const FATURAS_EMITIDAS_LIST_NAME = "FaturasEmitidas";
+const HISTORICO_LIST_NAME = "HistoricoAlteracoes";
 const ONEDRIVE_OWNER_UPN = "nuno.margarido@ventask.pt";
 const ONEDRIVE_ROOT_FOLDER = "FaturasApp";
 const ONEDRIVE_MAX_SIZE = 4 * 1024 * 1024; // 4MB (upload simples)
@@ -555,8 +572,8 @@ let currentAccount = null;
 function currentUserDisplayName(){
   return currentAccount ? (currentAccount.name || currentAccount.username || '—') : '—';
 }
-let state = { suppliers: [], invoices: [], clients: [], issuedInvoices: [], entidades: SEED_DATA.entidades, tipos: SEED_DATA.tipos, statuses: SEED_DATA.statuses, statusesEmitidas: ["Pendente","Paga","Vencida"] };
-let siteId = null, fornecedoresListId = null, faturasListId = null, clientesListId = null, faturasEmitidasListId = null;
+let state = { suppliers: [], invoices: [], clients: [], issuedInvoices: [], historico: [], entidades: SEED_DATA.entidades, tipos: SEED_DATA.tipos, statuses: SEED_DATA.statuses, statusesEmitidas: ["Pendente","Paga","Vencida"] };
+let siteId = null, fornecedoresListId = null, faturasListId = null, clientesListId = null, faturasEmitidasListId = null, historicoListId = null;
 
 /* ====================== UTIL ====================== */
 const fmtCurrency = v => new Intl.NumberFormat('pt-PT', {style:'currency', currency:'EUR'}).format(v||0);
@@ -800,6 +817,103 @@ async function createFaturasList(){
   const data = await graphFetch(`/sites/${siteId}/lists`, { method:"POST", body: JSON.stringify(body) });
   localStorage.setItem('sp_list_id_' + FATURAS_LIST_NAME, data.id);
   return data.id;
+}
+
+async function ensureHistoricoList(){
+  const body = {
+    displayName: HISTORICO_LIST_NAME,
+    list: { template: "genericList" },
+    columns: [
+      { name:"FaturaSpId", text:{} },
+      { name:"TipoFatura", text:{} },
+      { name:"Referencia", text:{} },
+      { name:"Resumo", text:{ allowMultipleLines:true } }
+    ]
+  };
+  const data = await graphFetch(`/sites/${siteId}/lists`, { method:"POST", body: JSON.stringify(body) });
+  localStorage.setItem('sp_list_id_' + HISTORICO_LIST_NAME, data.id);
+  return data.id;
+}
+
+function displayNameFromGraphUser(obj){
+  return (obj && obj.user && obj.user.displayName) || '—';
+}
+
+async function logHistorico(tipoFatura, faturaSpId, referencia, linhas){
+  if(!linhas || !linhas.length) return;
+  try{
+    if(!historicoListId){
+      historicoListId = await getListId(HISTORICO_LIST_NAME);
+      if(!historicoListId) historicoListId = await ensureHistoricoList();
+    }
+    if(!historicoListId) return;
+    const resumo = linhas.join('\n');
+    const created = await graphFetch(`/sites/${siteId}/lists/${historicoListId}/items`, {
+      method:'POST',
+      body: JSON.stringify({ fields:{ Title: referencia, FaturaSpId: String(faturaSpId), TipoFatura: tipoFatura, Referencia: referencia, Resumo: resumo } })
+    });
+    state.historico.push({
+      faturaSpId: String(faturaSpId), tipoFatura, referencia, resumo,
+      por: displayNameFromGraphUser(created.createdBy) !== '—' ? displayNameFromGraphUser(created.createdBy) : currentUserDisplayName(),
+      em: created.createdDateTime || new Date().toISOString()
+    });
+  }catch(e){
+    console.error('Erro a gravar histórico de alterações', e);
+  }
+}
+
+function diffCampos(oldD, newD, defs){
+  const linhas = [];
+  defs.forEach(([key,label,fmt])=>{
+    const a = oldD ? oldD[key] : undefined;
+    const b = newD ? newD[key] : undefined;
+    const av = fmt ? fmt(a) : (a==null||a===''? '—' : String(a));
+    const bv = fmt ? fmt(b) : (b==null||b===''? '—' : String(b));
+    if(av !== bv) linhas.push(`${label}: ${av} → ${bv}`);
+  });
+  return linhas;
+}
+
+const FATURA_HIST_FIELDS = [
+  ['fornecedor_nome','Fornecedor'],
+  ['entidade','Empresa'],
+  ['tipo','Tipo'],
+  ['numero_doc','Nº doc'],
+  ['mes_factura','Mês', v => v ? fmtMonth(v) : '—'],
+  ['valor','Valor', v => fmtCurrency(v||0)],
+  ['status','Estado'],
+  ['data_pgto','Data pagamento', v => v ? fmtDate(v) : '—'],
+  ['notas','Notas', v => v || '—'],
+];
+const FATURA_EMITIDA_HIST_FIELDS = [
+  ['cliente_nome','Cliente'],
+  ['entidade','Empresa'],
+  ['tipo','Tipo'],
+  ['numero_doc','Nº doc'],
+  ['mes_factura','Mês', v => v ? fmtMonth(v) : '—'],
+  ['data_emissao','Data emissão', v => v ? fmtDate(v) : '—'],
+  ['data_vencimento','Data vencimento', v => v ? fmtDate(v) : '—'],
+  ['valor','Valor', v => fmtCurrency(v||0)],
+  ['status','Estado'],
+  ['data_pgto','Data pagamento', v => v ? fmtDate(v) : '—'],
+  ['notas','Notas', v => v || '—'],
+];
+
+function renderTimelineInto(containerId, wrapId, tipoFatura, faturaSpId){
+  const wrap = document.getElementById(wrapId);
+  const cont = document.getElementById(containerId);
+  if(!faturaSpId){ wrap.style.display = 'none'; cont.innerHTML=''; return; }
+  wrap.style.display = 'block';
+  const items = state.historico
+    .filter(h => h.tipoFatura===tipoFatura && String(h.faturaSpId)===String(faturaSpId))
+    .sort((a,b)=> new Date(a.em) - new Date(b.em));
+  if(!items.length){ cont.innerHTML = '<div class="timeline-empty">Sem alterações registadas ainda.</div>'; return; }
+  cont.innerHTML = items.map(h => `
+    <div class="timeline-item">
+      <div class="tl-top"><span class="tl-who">${escapeHtml(h.por)}</span><span class="tl-when">${fmtDateTime(h.em)}</span></div>
+      <div class="tl-resumo">${escapeHtml(h.resumo)}</div>
+    </div>
+  `).join('');
 }
 
 /* ====================== FIELD MAPPING ====================== */
@@ -1072,6 +1186,21 @@ async function startApp(){
     faturasListId = await getListId(FATURAS_LIST_NAME);
     clientesListId = await getListId(CLIENTES_LIST_NAME);
     faturasEmitidasListId = await getListId(FATURAS_EMITIDAS_LIST_NAME);
+    try{
+      historicoListId = await getListId(HISTORICO_LIST_NAME);
+      if(!historicoListId) historicoListId = await ensureHistoricoList();
+      if(historicoListId){
+        const spHist = await fetchAllListItems(historicoListId, 'FaturaSpId,TipoFatura,Referencia,Resumo');
+        state.historico = spHist.map(item=>{
+          const f = item.fields||{};
+          return {
+            faturaSpId: f.FaturaSpId||'', tipoFatura: f.TipoFatura||'', referencia: f.Referencia||'', resumo: f.Resumo||'',
+            por: displayNameFromGraphUser(item.createdBy),
+            em: item.createdDateTime || null
+          };
+        });
+      }
+    }catch(e){ console.error('Erro a carregar histórico de alterações', e); }
 
     setAuthGateMsg('A carregar fornecedores...');
     if(fornecedoresListId){
@@ -2212,6 +2341,11 @@ document.getElementById('btnConfirmMarkPaid').addEventListener('click', async ()
   try{
     const listId = kind==='cliente' ? faturasEmitidasListId : faturasListId;
     await graphFetch(`/sites/${siteId}/lists/${listId}/items/${inv.spId}/fields`, { method:'PATCH', body: JSON.stringify({ Status:'Paga', DataPagamento: new Date(d+'T00:00:00Z').toISOString() }) });
+    const linhasPg = [];
+    if(prevStatus!=='Paga') linhasPg.push(`Estado: ${prevStatus||'—'} → Paga`);
+    if(prevData!==d) linhasPg.push(`Data de pagamento: ${prevData? fmtDate(prevData):'—'} → ${fmtDate(d)}`);
+    const refPg = kind==='cliente' ? `${inv.numero_doc||'(sem nº)'} · ${inv.cliente_nome}` : `${inv.numero_doc||'(sem nº)'} · ${inv.fornecedor_nome}`;
+    await logHistorico(kind==='cliente'?'Emitida':'Recebida', inv.spId, refPg, linhasPg);
     showToast('Fatura marcada como paga');
     renderDashboard();
   }catch(e){
@@ -2252,6 +2386,7 @@ function openFaturaModal(invId, presetFornecedorId){
   document.getElementById('finAnexoAtualLink').href = finAnexoUrl || '#';
   document.getElementById('btnDeleteFatura').style.display = inv ? 'inline-block' : 'none';
   updateFinDataLabel();
+  renderTimelineInto('finTimeline','finTimelineWrap','Recebida', inv? inv.spId : null);
   openModal('modalFatura');
 }
 document.getElementById('finAnexoRemoverBtn').addEventListener('click', ()=>{
@@ -2340,16 +2475,20 @@ document.getElementById('btnSaveFatura').addEventListener('click', async ()=>{
     };
 
     const id = document.getElementById('finId').value;
+    const finRef = `${data.numero_doc||'(sem nº)'} · ${data.fornecedor_nome}`;
     if(id){
       const inv = state.invoices.find(i=>i.id===id);
+      const prevData = {...inv};
       Object.assign(inv, data);
       await graphFetch(`/sites/${siteId}/lists/${faturasListId}/items/${inv.spId}/fields`, { method:'PATCH', body: JSON.stringify(invoiceToSpFields(inv)) });
+      await logHistorico('Recebida', inv.spId, finRef, diffCampos(prevData, data, FATURA_HIST_FIELDS));
       showToast('Fatura atualizada');
     } else {
       const created = await graphFetch(`/sites/${siteId}/lists/${faturasListId}/items`, { method:'POST', body: JSON.stringify({ fields: invoiceToSpFields(data) }) });
       state.invoices.push({ id: 'sp-'+created.id, spId: created.id, ...data,
         criado_em: created.createdDateTime || new Date().toISOString(),
         criado_por: (created.createdBy && created.createdBy.user && created.createdBy.user.displayName) || currentUserDisplayName() });
+      await logHistorico('Recebida', created.id, finRef, ['Fatura criada']);
       showToast('Fatura criada');
     }
     closeModal('modalFatura');
@@ -2587,6 +2726,7 @@ function openFaturaEmitidaModal(invId, presetClienteId){
   document.getElementById('feinAnexoAtualLink').href = feinAnexoUrl || '#';
   document.getElementById('btnDeleteFaturaEmitida').style.display = inv ? 'inline-block' : 'none';
   updateFeinDataLabel();
+  renderTimelineInto('feinTimeline','feinTimelineWrap','Emitida', inv? inv.spId : null);
   openModal('modalFaturaEmitida');
 }
 document.getElementById('feinAnexoRemoverBtn').addEventListener('click', ()=>{
@@ -2677,16 +2817,20 @@ document.getElementById('btnSaveFaturaEmitida').addEventListener('click', async 
     };
 
     const id = document.getElementById('feinId').value;
+    const feinRef = `${data.numero_doc||'(sem nº)'} · ${data.cliente_nome}`;
     if(id){
       const inv = state.issuedInvoices.find(i=>i.id===id);
+      const prevData = {...inv};
       Object.assign(inv, data);
       await graphFetch(`/sites/${siteId}/lists/${faturasEmitidasListId}/items/${inv.spId}/fields`, { method:'PATCH', body: JSON.stringify(faturaEmitidaToSpFields(inv)) });
+      await logHistorico('Emitida', inv.spId, feinRef, diffCampos(prevData, data, FATURA_EMITIDA_HIST_FIELDS));
       showToast('Fatura atualizada');
     } else {
       const created = await graphFetch(`/sites/${siteId}/lists/${faturasEmitidasListId}/items`, { method:'POST', body: JSON.stringify({ fields: faturaEmitidaToSpFields(data) }) });
       state.issuedInvoices.push({ id: 'sp-'+created.id, spId: created.id, ...data,
         criado_em: created.createdDateTime || new Date().toISOString(),
         criado_por: (created.createdBy && created.createdBy.user && created.createdBy.user.displayName) || currentUserDisplayName() });
+      await logHistorico('Emitida', created.id, feinRef, ['Fatura criada']);
       showToast('Fatura criada');
     }
     closeModal('modalFaturaEmitida');
