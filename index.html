@@ -68,7 +68,7 @@
   .badge.overdue{background:var(--red-bg);color:var(--red);}
   .muted{color:var(--muted);}
   .pill{display:inline-block;padding:2px 8px;border-radius:6px;background:var(--gray-bg);font-size:11.5px;font-weight:600;color:var(--text);}
-  .timeline{max-height:190px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:4px 12px;background:var(--gray-bg);}
+  .timeline{max-height:190px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:4px 12px;background:var(--gray-bg);margin-top:6px;}
   .timeline-item{padding:8px 0;border-bottom:1px dashed var(--border);font-size:12.5px;}
   .timeline-item:last-child{border-bottom:none;}
   .timeline-item .tl-top{display:flex;justify-content:space-between;gap:8px;margin-bottom:2px;}
@@ -76,6 +76,11 @@
   .timeline-item .tl-when{color:var(--muted);font-size:11px;white-space:nowrap;}
   .timeline-item .tl-resumo{white-space:pre-line;line-height:1.5;color:var(--text);}
   .timeline-empty{color:var(--muted);font-size:12.5px;padding:10px 2px;}
+  .timeline-details summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;font-weight:600;color:var(--navy);font-size:13px;user-select:none;}
+  .timeline-details summary::-webkit-details-marker{display:none;}
+  .timeline-details summary::before{content:'▸';display:inline-block;transition:transform .15s ease;font-size:11px;color:var(--muted);}
+  .timeline-details[open] summary::before{transform:rotate(90deg);}
+  .timeline-details .tl-count{font-weight:400;color:var(--muted);font-size:12px;}
   .grid-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px;}
   .dash-recent-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
   .stat{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);}
@@ -428,8 +433,10 @@
         <input type="file" id="finAnexoFile" accept=".pdf,.jpg,.jpeg,.png">
       </div>
       <div class="form-row" style="grid-column:1/-1;display:none;" id="finTimelineWrap">
-        <label>Histórico de alterações</label>
-        <div id="finTimeline" class="timeline"></div>
+        <details class="timeline-details">
+          <summary>Histórico de alterações <span class="tl-count" id="finTimelineCount"></span></summary>
+          <div id="finTimeline" class="timeline"></div>
+        </details>
       </div>
     </div>
     <div class="modal-actions">
@@ -519,8 +526,10 @@
         <input type="file" id="feinAnexoFile" accept=".pdf,.jpg,.jpeg,.png">
       </div>
       <div class="form-row" style="grid-column:1/-1;display:none;" id="feinTimelineWrap">
-        <label>Histórico de alterações</label>
-        <div id="feinTimeline" class="timeline"></div>
+        <details class="timeline-details">
+          <summary>Histórico de alterações <span class="tl-count" id="feinTimelineCount"></span></summary>
+          <div id="feinTimeline" class="timeline"></div>
+        </details>
       </div>
     </div>
     <div class="modal-actions">
@@ -902,12 +911,20 @@ const FATURA_EMITIDA_HIST_FIELDS = [
 function renderTimelineInto(containerId, wrapId, tipoFatura, faturaSpId){
   const wrap = document.getElementById(wrapId);
   const cont = document.getElementById(containerId);
-  if(!faturaSpId){ wrap.style.display = 'none'; cont.innerHTML=''; return; }
+  const countEl = document.getElementById(containerId + 'Count');
+  if(!faturaSpId){ wrap.style.display = 'none'; cont.innerHTML=''; if(countEl) countEl.textContent=''; return; }
   wrap.style.display = 'block';
   const items = state.historico
     .filter(h => h.tipoFatura===tipoFatura && String(h.faturaSpId)===String(faturaSpId))
     .sort((a,b)=> new Date(a.em) - new Date(b.em));
-  if(!items.length){ cont.innerHTML = '<div class="timeline-empty">Sem alterações registadas ainda.</div>'; return; }
+  const details = wrap.querySelector('details');
+  if(details) details.open = false;
+  if(!items.length){
+    cont.innerHTML = '<div class="timeline-empty">Sem alterações registadas ainda.</div>';
+    if(countEl) countEl.textContent = '(0)';
+    return;
+  }
+  if(countEl) countEl.textContent = `(${items.length})`;
   cont.innerHTML = items.map(h => `
     <div class="timeline-item">
       <div class="tl-top"><span class="tl-who">${escapeHtml(h.por)}</span><span class="tl-when">${fmtDateTime(h.em)}</span></div>
