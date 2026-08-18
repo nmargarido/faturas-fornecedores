@@ -175,6 +175,10 @@
 
   <!-- DASHBOARD -->
   <div class="view active" id="view-dashboard">
+    <div class="toolbar" style="margin-bottom:4px;">
+      <label class="muted" style="font-size:12.5px;font-weight:600;">Filtrar por utilizador</label>
+      <select id="dashUserFilter"><option value="">Todos os utilizadores</option></select>
+    </div>
     <div class="dash-recent-grid">
       <div class="card">
         <h2>Últimas 6 faturas de clientes</h2>
@@ -1325,9 +1329,25 @@ document.querySelectorAll('.modal-overlay').forEach(ov=>{
 
 /* ====================== DASHBOARD ====================== */
 function currentEntidadeFilter(){ return document.getElementById('entidadeGlobalFilter').value; }
+function currentDashUserFilter(){ return document.getElementById('dashUserFilter').value; }
+
+function populateDashUserFilter(){
+  const sel = document.getElementById('dashUserFilter');
+  const previous = sel.value;
+  const users = new Set();
+  [...state.invoices, ...state.issuedInvoices].forEach(i=>{
+    if(i.criado_por) users.add(i.criado_por);
+    if(i.modificado_por) users.add(i.modificado_por);
+  });
+  const sorted = [...users].sort((a,b)=>a.localeCompare(b,'pt'));
+  sel.innerHTML = '<option value="">Todos os utilizadores</option>' + sorted.map(u=>`<option value="${escapeHtml(u)}">${escapeHtml(u)}</option>`).join('');
+  if(previous && sorted.includes(previous)) sel.value = previous;
+}
 
 function renderDashboard(){
+  populateDashUserFilter();
   const ent = currentEntidadeFilter();
+  const user = currentDashUserFilter();
   const invs = state.invoices.filter(i => !ent || i.entidade===ent);
 
   const byRecent = (a,b) => {
@@ -1343,7 +1363,7 @@ function renderDashboard(){
     return (b.spId||0)-(a.spId||0);
   };
 
-  const recentFornecedores = invs.slice().sort(byRecent).slice(0,6);
+  const recentFornecedores = invs.filter(i=>!user || i.criado_por===user).slice().sort(byRecent).slice(0,6);
   const bodyF = document.getElementById('dashRecentFornecedoresBody');
   document.getElementById('dashRecentFornecedoresEmpty').style.display = recentFornecedores.length ? 'none':'block';
   bodyF.innerHTML = recentFornecedores.map(i=>`<tr>
@@ -1355,7 +1375,7 @@ function renderDashboard(){
     </tr>`).join('');
 
   const invsCli = state.issuedInvoices.filter(i => !ent || i.entidade===ent);
-  const recentClientes = invsCli.slice().sort(byRecent).slice(0,6);
+  const recentClientes = invsCli.filter(i=>!user || i.criado_por===user).slice().sort(byRecent).slice(0,6);
   const bodyC = document.getElementById('dashRecentClientesBody');
   document.getElementById('dashRecentClientesEmpty').style.display = recentClientes.length ? 'none':'block';
   bodyC.innerHTML = recentClientes.map(i=>`<tr>
@@ -1366,7 +1386,7 @@ function renderDashboard(){
       <td class="muted" style="font-size:12.5px;">${escapeHtml(i.criado_por||'—')}</td>
     </tr>`).join('');
 
-  const pagasFornecedores = invs.filter(i=>i.status==='Paga').sort(byRecentPaga).slice(0,5);
+  const pagasFornecedores = invs.filter(i=>i.status==='Paga' && (!user || i.modificado_por===user)).sort(byRecentPaga).slice(0,5);
   const bodyPF = document.getElementById('dashPagasFornecedoresBody');
   document.getElementById('dashPagasFornecedoresEmpty').style.display = pagasFornecedores.length ? 'none':'block';
   bodyPF.innerHTML = pagasFornecedores.map(i=>`<tr>
@@ -1377,7 +1397,7 @@ function renderDashboard(){
       <td class="muted" style="font-size:12.5px;">${escapeHtml(i.modificado_por||'—')}</td>
     </tr>`).join('');
 
-  const pagasClientes = invsCli.filter(i=>i.status==='Paga').sort(byRecentPaga).slice(0,5);
+  const pagasClientes = invsCli.filter(i=>i.status==='Paga' && (!user || i.modificado_por===user)).sort(byRecentPaga).slice(0,5);
   const bodyPC = document.getElementById('dashPagasClientesBody');
   document.getElementById('dashPagasClientesEmpty').style.display = pagasClientes.length ? 'none':'block';
   bodyPC.innerHTML = pagasClientes.map(i=>`<tr>
@@ -3031,6 +3051,7 @@ document.querySelectorAll('#mainNav button').forEach(btn=>{
 document.getElementById('entidadeGlobalFilter').addEventListener('change', ()=>{
   renderDashboard(); renderFaturasTab(); renderRelatorios(); renderFornecedoresGrid();
 });
+document.getElementById('dashUserFilter').addEventListener('change', renderDashboard);
 document.getElementById('fornecedorSearch').addEventListener('input', ()=>{fornecedoresPage=0; renderFornecedoresGrid();});
 document.getElementById('faturaSearch').addEventListener('input', ()=>{faturasPage=0; renderFaturasTab();});
 document.getElementById('faturaStatusFilter').addEventListener('change', ()=>{faturasPage=0; renderFaturasTab();});
