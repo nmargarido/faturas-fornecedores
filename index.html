@@ -95,7 +95,8 @@
   #view-dashboard .dash-card tbody tr:hover td{background:var(--gray-bg);}
   #view-dashboard .dash-card tbody tr:last-child td{border-bottom:none;}
   #view-dashboard .dash-card .who-pill{display:inline-block;padding:2px 9px;border-radius:99px;background:var(--gray-bg);font-size:11px;font-weight:600;color:var(--text);white-space:nowrap;}
-  #view-dashboard .dash-card.paid .who-pill{background:var(--green-bg);color:var(--green);}
+  #view-dashboard .dash-card .who-pill.mine{background:var(--green-bg);color:var(--green);}
+  #view-dashboard .dash-card .who-pill.flagged{background:var(--red-bg);color:var(--red);}
   .stat{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);}
   .stat .label{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;}
   .stat .value{font-size:22px;font-weight:700;}
@@ -625,6 +626,15 @@ let msalInstance = null;
 let currentAccount = null;
 function currentUserDisplayName(){
   return currentAccount ? (currentAccount.name || currentAccount.username || '—') : '—';
+}
+const FLAGGED_USER_NAME = 'keval lakhani';
+function whoPillClass(name){
+  if(!name) return '';
+  const n = name.trim().toLowerCase();
+  const me = (currentUserDisplayName()||'').trim().toLowerCase();
+  if(me && me !== '—' && n === me) return 'mine';
+  if(n === FLAGGED_USER_NAME) return 'flagged';
+  return '';
 }
 let state = { suppliers: [], invoices: [], clients: [], issuedInvoices: [], historico: [], entidades: SEED_DATA.entidades, tipos: SEED_DATA.tipos, statuses: SEED_DATA.statuses, statusesEmitidas: ["Pendente","Paga","Vencida"] };
 let siteId = null, fornecedoresListId = null, faturasListId = null, clientesListId = null, faturasEmitidasListId = null, historicoListId = null;
@@ -1412,7 +1422,7 @@ function renderDashboard(){
       <td data-label="Nº Doc">${escapeHtml(i.numero_doc||'—')}</td>
       <td class="num" data-label="Valor">${fmtCurrency(i.valor)}</td>
       <td class="muted" style="font-size:12.5px;white-space:nowrap;" data-label="Inserido em">${fmtDateTime(i.criado_em)}</td>
-      <td data-label="Por">${i.criado_por ? `<span class="who-pill">${escapeHtml(i.criado_por)}</span>` : '<span class="muted">—</span>'}</td>
+      <td data-label="Por">${i.criado_por ? `<span class="who-pill ${whoPillClass(i.criado_por)}">${escapeHtml(i.criado_por)}</span>` : '<span class="muted">—</span>'}</td>
     </tr>`).join('');
 
   const invsCli = state.issuedInvoices.filter(i => !ent || i.entidade===ent);
@@ -1424,7 +1434,7 @@ function renderDashboard(){
       <td data-label="Nº Doc">${escapeHtml(i.numero_doc||'—')}</td>
       <td class="num" data-label="Valor">${fmtCurrency(i.valor)}</td>
       <td class="muted" style="font-size:12.5px;white-space:nowrap;" data-label="Inserido em">${fmtDateTime(i.criado_em)}</td>
-      <td data-label="Por">${i.criado_por ? `<span class="who-pill">${escapeHtml(i.criado_por)}</span>` : '<span class="muted">—</span>'}</td>
+      <td data-label="Por">${i.criado_por ? `<span class="who-pill ${whoPillClass(i.criado_por)}">${escapeHtml(i.criado_por)}</span>` : '<span class="muted">—</span>'}</td>
     </tr>`).join('');
 
   const pagasFornecedores = invs.filter(i=>i.status==='Paga' && (!user || i.modificado_por===user)).sort(byRecentPaga).slice(0,5);
@@ -1435,7 +1445,7 @@ function renderDashboard(){
       <td data-label="Nº Doc">${escapeHtml(i.numero_doc||'—')}</td>
       <td class="num" data-label="Valor">${fmtCurrency(i.valor)}</td>
       <td class="muted" style="font-size:12.5px;white-space:nowrap;" data-label="Pago em">${fmtDateTime(i.modificado_em)}</td>
-      <td data-label="Por">${i.modificado_por ? `<span class="who-pill">${escapeHtml(i.modificado_por)}</span>` : '<span class="muted">—</span>'}</td>
+      <td data-label="Por">${i.modificado_por ? `<span class="who-pill ${whoPillClass(i.modificado_por)}">${escapeHtml(i.modificado_por)}</span>` : '<span class="muted">—</span>'}</td>
     </tr>`).join('');
 
   const pagasClientes = invsCli.filter(i=>i.status==='Paga' && (!user || i.modificado_por===user)).sort(byRecentPaga).slice(0,5);
@@ -1446,7 +1456,7 @@ function renderDashboard(){
       <td data-label="Nº Doc">${escapeHtml(i.numero_doc||'—')}</td>
       <td class="num" data-label="Valor">${fmtCurrency(i.valor)}</td>
       <td class="muted" style="font-size:12.5px;white-space:nowrap;" data-label="Pago em">${fmtDateTime(i.modificado_em)}</td>
-      <td data-label="Por">${i.modificado_por ? `<span class="who-pill">${escapeHtml(i.modificado_por)}</span>` : '<span class="muted">—</span>'}</td>
+      <td data-label="Por">${i.modificado_por ? `<span class="who-pill ${whoPillClass(i.modificado_por)}">${escapeHtml(i.modificado_por)}</span>` : '<span class="muted">—</span>'}</td>
     </tr>`).join('');
 }
 
