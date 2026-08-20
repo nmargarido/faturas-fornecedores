@@ -2323,6 +2323,17 @@ document.getElementById('btnDeleteCliente').addEventListener('click', async ()=>
 let faturasPage = 0;
 const FATURAS_PAGE_SIZE = 50;
 
+function findDuplicateFatura(fornecedorId, entidade, numeroDoc, excludeId){
+  const numDoc = (numeroDoc||'').trim().toLowerCase();
+  if(!numDoc || !fornecedorId) return null;
+  return state.invoices.find(i =>
+    i.fornecedor_id === fornecedorId &&
+    i.entidade === entidade &&
+    (i.numero_doc||'').trim().toLowerCase() === numDoc &&
+    i.id !== excludeId
+  ) || null;
+}
+
 function faturaRowHtml(i){
   const isOverdue = i.status==='Pendente' && i.data_pgto && i.data_pgto < todayISO();
   return `<tr>
@@ -2524,6 +2535,15 @@ document.getElementById('btnSaveFatura').addEventListener('click', async ()=>{
       finalNome = sup.nome; finalNipc = sup.nipc||'';
     }
 
+    const entidadeVal = document.getElementById('finEntidade').value;
+    const numeroDocVal = document.getElementById('finNumeroDoc').value.trim();
+    const currentFinId = document.getElementById('finId').value;
+    const dupFatura = findDuplicateFatura(finalFornecedorId, entidadeVal, numeroDocVal, currentFinId);
+    if(dupFatura){
+      const ok = confirm(`Já existe uma fatura com o nº "${dupFatura.numero_doc}" para "${finalNome}" (${entidadeVal}), no valor de ${fmtCurrency(dupFatura.valor)}.\n\nQueres continuar e gravar mesmo assim?`);
+      if(!ok){ btn.disabled = false; btn.textContent = 'Guardar'; return; }
+    }
+
     const mes = document.getElementById('finMesFactura').value;
     const existingInvForAnexo = document.getElementById('finId').value ? state.invoices.find(i=>i.id===document.getElementById('finId').value) : null;
     let anexoUrl = existingInvForAnexo ? (existingInvForAnexo.anexo_url||'') : '';
@@ -2682,6 +2702,17 @@ document.addEventListener('click', function(e){
 let fePage = 0;
 const FE_PAGE_SIZE = 50;
 let feAnoSel = new Set();
+
+function findDuplicateFaturaEmitida(clienteId, entidade, numeroDoc, excludeId){
+  const numDoc = (numeroDoc||'').trim().toLowerCase();
+  if(!numDoc || !clienteId) return null;
+  return state.issuedInvoices.find(i =>
+    i.cliente_id === clienteId &&
+    i.entidade === entidade &&
+    (i.numero_doc||'').trim().toLowerCase() === numDoc &&
+    i.id !== excludeId
+  ) || null;
+}
 let feMesSel = new Set();
 registerMsel('feAno', ()=>feAnoSel, ()=>{ fePage=0; renderFeFilters(); renderFaturasEmitidasTab(); });
 registerMsel('feMes', ()=>feMesSel, ()=>{ fePage=0; renderFeFilters(); renderFaturasEmitidasTab(); });
@@ -2862,6 +2893,15 @@ document.getElementById('btnSaveFaturaEmitida').addEventListener('click', async 
     } else {
       const cli = clientById(finalClienteId);
       finalNome = cli.nome; finalNipc = cli.nipc||'';
+    }
+
+    const entidadeValFe = document.getElementById('feinEntidade').value;
+    const numeroDocValFe = document.getElementById('feinNumeroDoc').value.trim();
+    const currentFeinId = document.getElementById('feinId').value;
+    const dupFaturaEmitida = findDuplicateFaturaEmitida(finalClienteId, entidadeValFe, numeroDocValFe, currentFeinId);
+    if(dupFaturaEmitida){
+      const ok = confirm(`Já existe uma fatura com o nº "${dupFaturaEmitida.numero_doc}" para "${finalNome}" (${entidadeValFe}), no valor de ${fmtCurrency(dupFaturaEmitida.valor)}.\n\nQueres continuar e gravar mesmo assim?`);
+      if(!ok){ btn.disabled = false; btn.textContent = 'Guardar'; return; }
     }
 
     const mes = document.getElementById('feinMesFactura').value;
