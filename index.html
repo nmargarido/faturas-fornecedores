@@ -94,9 +94,9 @@
   #view-dashboard .dash-card table td{padding:10px 10px;}
   #view-dashboard .dash-card tbody tr:hover td{background:var(--gray-bg);}
   #view-dashboard .dash-card tbody tr:last-child td{border-bottom:none;}
-  #view-dashboard .dash-card .who-pill{display:inline-block;padding:2px 9px;border-radius:99px;background:var(--gray-bg);font-size:11px;font-weight:600;color:var(--text);white-space:nowrap;}
-  #view-dashboard .dash-card .who-pill.mine{background:var(--green-bg);color:var(--green);}
-  #view-dashboard .dash-card .who-pill.flagged{background:var(--red-bg);color:var(--red);}
+  .who-pill{display:inline-block;padding:2px 9px;border-radius:99px;background:var(--gray-bg);font-size:11px;font-weight:600;color:var(--text);white-space:nowrap;}
+  .who-pill.mine{background:var(--green-bg);color:var(--green);}
+  .who-pill.flagged{background:var(--red-bg);color:var(--red);}
   .stat{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);}
   .stat .label{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;}
   .stat .value{font-size:22px;font-weight:700;}
@@ -202,6 +202,7 @@
     <button data-view="clientes">Clientes</button>
     <button data-view="faturasEmitidas">Faturas Emitidas</button>
     <button data-view="relatorios">Relatórios</button>
+    <button data-view="atividade">Atividade</button>
     <button data-view="backup">Conta</button>
   </nav>
   <div class="spacer"></div>
@@ -394,6 +395,29 @@
     </div>
   </div>
 
+  <!-- ATIVIDADE -->
+  <div class="view" id="view-atividade">
+    <div class="card">
+      <h2>Atividade</h2>
+      <div class="sub">Tudo o que foi criado ou alterado, por todos os utilizadores.</div>
+      <div class="toolbar">
+        <input type="search" id="atividadeSearch" placeholder="Pesquisar por referência ou alteração...">
+        <select id="atividadeUserFilter"><option value="">Todos os utilizadores</option></select>
+        <select id="atividadeTipoFilter">
+          <option value="">Recebidas e Emitidas</option>
+          <option value="Recebida">Faturas Recebidas</option>
+          <option value="Emitida">Faturas Emitidas</option>
+        </select>
+      </div>
+      <div class="table-scroll"><table class="table-responsive">
+        <thead><tr><th>Quando</th><th>Quem</th><th>Tipo</th><th>Referência</th><th>Alteração</th></tr></thead>
+        <tbody id="atividadeBody"></tbody>
+      </table></div>
+      <div class="empty" id="atividadeEmpty" style="display:none;">Sem atividade para os filtros escolhidos.</div>
+      <div class="pagination" id="atividadePagination"></div>
+    </div>
+  </div>
+
   <!-- CONTA / BACKUP -->
   <div class="view" id="view-backup">
     <div class="card">
@@ -462,7 +486,7 @@
       <div class="form-row"><label>Tipo</label>
         <select id="finTipo"><option>Factura</option><option>Nota Crédito</option><option>Recibo</option></select>
       </div>
-      <div class="form-row"><label>Nº do documento</label><input type="text" id="finNumeroDoc"></div>
+      <div class="form-row"><label>Nº do documento *</label><input type="text" id="finNumeroDoc"></div>
       <div class="form-row"><label>Mês da fatura</label><input type="month" id="finMesFactura"></div>
       <div class="form-row"><label>Valor (EUR) *</label><input type="number" step="0.01" id="finValor"></div>
       <div class="form-row"><label>Estado *</label>
@@ -553,7 +577,7 @@
       <div class="form-row"><label>Tipo</label>
         <select id="feinTipo"><option>Factura</option><option>Nota Crédito</option><option>Recibo</option></select>
       </div>
-      <div class="form-row"><label>Nº do documento</label><input type="text" id="feinNumeroDoc"></div>
+      <div class="form-row"><label>Nº do documento *</label><input type="text" id="feinNumeroDoc"></div>
       <div class="form-row"><label>Mês da fatura</label><input type="month" id="feinMesFactura"></div>
       <div class="form-row"><label>Data de emissão</label><input type="date" id="feinDataEmissao"></div>
       <div class="form-row"><label>Data de vencimento</label><input type="date" id="feinDataVencimento"></div>
@@ -1368,6 +1392,7 @@ function switchView(name){
   if(name==='clientes') { showClienteList(); renderClientesGrid(); }
   if(name==='faturasEmitidas') renderFaturasEmitidasTab();
   if(name==='relatorios') renderRelatorios();
+  if(name==='atividade') renderAtividade();
   if(name==='backup') renderAccountStatus();
 }
 
@@ -2523,6 +2548,8 @@ document.getElementById('btnSaveFatura').addEventListener('click', async ()=>{
   if(!fornecedorNomeTyped){ showToast('Indica o fornecedor'); return; }
   const valor = parseFloat(document.getElementById('finValor').value);
   if(isNaN(valor)){ showToast('Indica o valor'); return; }
+  const numeroDocTyped = document.getElementById('finNumeroDoc').value.trim();
+  if(!numeroDocTyped){ showToast('Indica o número do documento'); return; }
 
   const btn = document.getElementById('btnSaveFatura');
   btn.disabled = true; btn.textContent = 'A guardar...';
@@ -2883,6 +2910,8 @@ document.getElementById('btnSaveFaturaEmitida').addEventListener('click', async 
   if(!clienteNomeTyped){ showToast('Indica o cliente'); return; }
   const valor = parseFloat(document.getElementById('feinValor').value);
   if(isNaN(valor)){ showToast('Indica o valor'); return; }
+  const numeroDocTyped = document.getElementById('feinNumeroDoc').value.trim();
+  if(!numeroDocTyped){ showToast('Indica o número do documento'); return; }
 
   const btn = document.getElementById('btnSaveFaturaEmitida');
   btn.disabled = true; btn.textContent = 'A guardar...';
@@ -3078,6 +3107,59 @@ function renderRelatorios(){
 }
 document.getElementById('relEmpresaFilter').addEventListener('change', renderRelatorios);
 
+/* ====================== ATIVIDADE ====================== */
+let atividadePage = 0;
+const ATIVIDADE_PAGE_SIZE = 50;
+
+function populateAtividadeUserFilter(){
+  const sel = document.getElementById('atividadeUserFilter');
+  const previous = sel.value;
+  const users = new Set(state.historico.map(h=>h.por).filter(Boolean));
+  const sorted = [...users].sort((a,b)=>a.localeCompare(b,'pt'));
+  sel.innerHTML = '<option value="">Todos os utilizadores</option>' + sorted.map(u=>`<option value="${escapeHtml(u)}">${escapeHtml(u)}</option>`).join('');
+  if(previous && sorted.includes(previous)) sel.value = previous;
+}
+
+function renderAtividade(){
+  populateAtividadeUserFilter();
+  const q = (document.getElementById('atividadeSearch').value||'').toLowerCase().trim();
+  const userF = document.getElementById('atividadeUserFilter').value;
+  const tipoF = document.getElementById('atividadeTipoFilter').value;
+
+  let list = state.historico.filter(h=>{
+    if(userF && h.por !== userF) return false;
+    if(tipoF && h.tipoFatura !== tipoF) return false;
+    if(q && !((h.referencia||'').toLowerCase().includes(q) || (h.resumo||'').toLowerCase().includes(q))) return false;
+    return true;
+  });
+  list = list.slice().sort((a,b)=> new Date(b.em) - new Date(a.em));
+
+  const total = list.length;
+  const pages = Math.max(1, Math.ceil(total/ATIVIDADE_PAGE_SIZE));
+  atividadePage = Math.min(atividadePage, pages-1);
+  const pageItems = list.slice(atividadePage*ATIVIDADE_PAGE_SIZE, (atividadePage+1)*ATIVIDADE_PAGE_SIZE);
+
+  document.getElementById('atividadeEmpty').style.display = total ? 'none':'block';
+  document.getElementById('atividadeBody').innerHTML = pageItems.map(h=>`
+    <tr>
+      <td data-label="Quando" class="muted" style="white-space:nowrap;">${fmtDateTime(h.em)}</td>
+      <td data-label="Quem">${h.por ? `<span class="who-pill ${whoPillClass(h.por)}">${escapeHtml(h.por)}</span>` : '<span class="muted">—</span>'}</td>
+      <td data-label="Tipo"><span class="pill">${h.tipoFatura==='Emitida' ? 'Emitida' : 'Recebida'}</span></td>
+      <td data-label="Referência">${escapeHtml(h.referencia||'—')}</td>
+      <td data-label="Alteração" style="white-space:pre-line;">${escapeHtml(h.resumo||'—')}</td>
+    </tr>`).join('');
+
+  document.getElementById('atividadePagination').innerHTML = `
+    <span>${total} registo${total===1?'':'s'}</span>
+    <button ${atividadePage===0?'disabled':''} onclick="atividadePage--;renderAtividade()">‹</button>
+    <span>Página ${atividadePage+1} / ${pages}</span>
+    <button ${atividadePage>=pages-1?'disabled':''} onclick="atividadePage++;renderAtividade()">›</button>
+  `;
+}
+document.getElementById('atividadeSearch').addEventListener('input', ()=>{atividadePage=0; renderAtividade();});
+document.getElementById('atividadeUserFilter').addEventListener('change', ()=>{atividadePage=0; renderAtividade();});
+document.getElementById('atividadeTipoFilter').addEventListener('change', ()=>{atividadePage=0; renderAtividade();});
+
 /* ====================== CONTA / BACKUP ====================== */
 function renderAccountStatus(){
   document.getElementById('accountStatus').innerHTML = `
@@ -3123,7 +3205,7 @@ function populateEntidadeFilters(){
 }
 
 function initAfterStateChange(){
-  fornecedoresPage = 0; faturasPage = 0; clientesPage = 0; fePage = 0;
+  fornecedoresPage = 0; faturasPage = 0; clientesPage = 0; fePage = 0; atividadePage = 0;
   populateAnoFilter();
   renderFeFilters();
   renderDashboard();
@@ -3134,6 +3216,7 @@ function initAfterStateChange(){
   renderClientesGrid();
   renderFaturasEmitidasTab();
   renderRelatorios();
+  renderAtividade();
 }
 
 document.querySelectorAll('#mainNav button').forEach(btn=>{
