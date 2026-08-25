@@ -884,6 +884,23 @@ async function getListId(sName){
   return null;
 }
 
+// Devolve TODOS os ids de listas com este nome (não só a primeira). Existe para
+// nos protegermos de um cenário em que duas pessoas, a abrir a app pela
+// primeira vez ao mesmo tempo, criaram por engano duas listas com o mesmo
+// nome (ex: "HistoricoAlteracoes") — sem isto, cada utilizador ficaria "preso"
+// a ler/escrever numa lista diferente e nunca veria os registos do outro.
+async function getAllListIds(sName){
+  let all = [];
+  let url = `/sites/${siteId}/lists?$top=200&$select=id,displayName,name`;
+  while(url){
+    const data = await graphFetch(url);
+    all = all.concat(data.value || []);
+    url = data['@odata.nextLink'] ? data['@odata.nextLink'].replace('https://graph.microsoft.com/v1.0','') : null;
+  }
+  const target = sName.trim().toLowerCase();
+  return all.filter(l => (l.displayName||'').trim().toLowerCase()===target || (l.name||'').trim().toLowerCase()===target).map(l=>l.id);
+}
+
 async function createFaturasList(){
   const body = {
     displayName: FATURAS_LIST_NAME,
@@ -1283,11 +1300,28 @@ async function startApp(){
     clientesListId = await getListId(CLIENTES_LIST_NAME);
     faturasEmitidasListId = await getListId(FATURAS_EMITIDAS_LIST_NAME);
     try{
-      historicoListId = await getListId(HISTORICO_LIST_NAME);
-      if(!historicoListId) historicoListId = await ensureHistoricoList();
-      if(historicoListId){
-        const spHist = await fetchAllListItems(historicoListId, 'FaturaSpId,TipoFatura,Referencia,Resumo');
-        state.historico = spHist.map(item=>{
+      let historicoListIds = await getAllListIds(HISTORICO_LIST_NAME);
+      if(!historicoListIds.length){
+        const created = await ensureHistoricoList();
+        historicoListIds = created ? [created] : [];
+      }
+      // Se por alguma razão existir mais do que uma lista com este nome (ex: duas
+      // pessoas a abrirem a app pela primeira vez ao mesmo tempo criaram cada
+      // uma a sua), usamos sempre a mesma (a de id mais baixo, i.e. a mais antiga)
+      // para novas escritas, mas lemos e juntamos os registos de todas, para não
+      // perder atividade de ninguém.
+      historicoListIds = historicoListIds.slice().sort();
+      historicoListId = historicoListIds[0] || null;
+      if(historicoListIds.length > 1){
+        console.warn(`Atenção: encontradas ${historicoListIds.length} listas "${HISTORICO_LIST_NAME}" no SharePoint — a juntar os registos de todas.`);
+      }
+      if(historicoListIds.length){
+        const allSpHist = [];
+        for(const lid of historicoListIds){
+          const spHist = await fetchAllListItems(lid, 'FaturaSpId,TipoFatura,Referencia,Resumo');
+          allSpHist.push(...spHist);
+        }
+        state.historico = allSpHist.map(item=>{
           const f = item.fields||{};
           return {
             faturaSpId: f.FaturaSpId||'', tipoFatura: f.TipoFatura||'', referencia: f.Referencia||'', resumo: f.Resumo||'',
