@@ -855,33 +855,45 @@ async function getSiteId(){
   return data.id;
 }
 
+// Catálogo de todas as listas do site, partilhado por getListId/getAllListIds.
+// Antes, CADA chamada a getListId (uma por cada lista: Fornecedores, Faturas,
+// Clientes, FaturasEmitidas...) ia buscar sozinha a lista completa de listas do
+// site — ou seja, o mesmo pedido pesado repetido 4-5 vezes seguidas em cada
+// arranque da app, sequencialmente. Agora só se pede uma vez (e fica em cache
+// em memória para o resto da sessão) e todas as resoluções de nome usam-na.
+let _siteListsCatalogPromise = null;
+async function fetchSiteListsCatalog(forceRefresh){
+  if(forceRefresh) _siteListsCatalogPromise = null;
+  if(!_siteListsCatalogPromise){
+    _siteListsCatalogPromise = (async ()=>{
+      let all = [];
+      let url = `/sites/${siteId}/lists?$top=200&$select=id,displayName,name`;
+      while(url){
+        const data = await graphFetch(url);
+        all = all.concat(data.value || []);
+        url = data['@odata.nextLink'] ? data['@odata.nextLink'].replace('https://graph.microsoft.com/v1.0','') : null;
+      }
+      return all;
+    })();
+  }
+  return _siteListsCatalogPromise;
+}
+
 async function getListId(sName){
   const cacheKey = 'sp_list_id_' + sName;
-  const cached = localStorage.getItem(cacheKey);
-  if(cached){
-    try{
-      await graphFetch(`/sites/${siteId}/lists/${cached}`);
-      return cached;
-    }catch(e){
-      localStorage.removeItem(cacheKey);
-    }
-  }
-  // Busca todas as listas do site e compara localmente (mais fiável do que $filter,
-  // que pode atrasar-se a indexar listas criadas há pouco tempo).
-  let all = [];
-  let url = `/sites/${siteId}/lists?$top=200&$select=id,displayName,name`;
-  while(url){
-    const data = await graphFetch(url);
-    all = all.concat(data.value || []);
-    url = data['@odata.nextLink'] ? data['@odata.nextLink'].replace('https://graph.microsoft.com/v1.0','') : null;
-  }
   const target = sName.trim().toLowerCase();
-  const match = all.find(l => (l.displayName||'').trim().toLowerCase()===target || (l.name||'').trim().toLowerCase()===target);
+  const matchIn = list => list.find(l => (l.displayName||'').trim().toLowerCase()===target || (l.name||'').trim().toLowerCase()===target);
+  let match = matchIn(await fetchSiteListsCatalog());
+  if(!match){
+    // Pode ter sido criada mesmo agora (ex: por outra pessoa) e o catálogo em
+    // cache ainda não a inclui — tenta mais uma vez com um catálogo fresco.
+    match = matchIn(await fetchSiteListsCatalog(true));
+  }
   if(match){
     localStorage.setItem(cacheKey, match.id);
     return match.id;
   }
-  return null;
+  return localStorage.getItem(cacheKey) || null;
 }
 
 // Devolve TODOS os ids de listas com este nome (não só a primeira). Existe para
@@ -890,15 +902,9 @@ async function getListId(sName){
 // nome (ex: "HistoricoAlteracoes") — sem isto, cada utilizador ficaria "preso"
 // a ler/escrever numa lista diferente e nunca veria os registos do outro.
 async function getAllListIds(sName){
-  let all = [];
-  let url = `/sites/${siteId}/lists?$top=200&$select=id,displayName,name`;
-  while(url){
-    const data = await graphFetch(url);
-    all = all.concat(data.value || []);
-    url = data['@odata.nextLink'] ? data['@odata.nextLink'].replace('https://graph.microsoft.com/v1.0','') : null;
-  }
   const target = sName.trim().toLowerCase();
-  return all.filter(l => (l.displayName||'').trim().toLowerCase()===target || (l.name||'').trim().toLowerCase()===target).map(l=>l.id);
+  const catalog = await fetchSiteListsCatalog();
+  return catalog.filter(l => (l.displayName||'').trim().toLowerCase()===target || (l.name||'').trim().toLowerCase()===target).map(l=>l.id);
 }
 
 async function createFaturasList(){
@@ -1152,11 +1158,24 @@ function diasParaVencerLabel(i){
 }
 
 /* ====================== READ ALL ITEMS (paginated) ====================== */
-async function fetchAllListItems(listId, selectFields){
+async function fetchAllListItems(listId, selectFields, pageSize){
+  // Pedimos uma página maior (999 em vez de 200) para reduzir o nº de pedidos
+  // sequenciais numa lista com milhares de registos (ex: Faturas). Se o
+  // SharePoint recusar/limitar isto no primeiro pedido, voltamos ao valor
+  // "clássico" de 200 automaticamente — nunca fica pior do que estava.
+  const top = pageSize || 999;
   let items = [];
-  let url = `/sites/${siteId}/lists/${listId}/items?$expand=fields($select=${selectFields})&$top=200`;
+  let url = `/sites/${siteId}/lists/${listId}/items?$expand=fields($select=${selectFields})&$top=${top}`;
+  let first = true;
   while(url){
-    const data = await graphFetch(url);
+    let data;
+    try{
+      data = await graphFetch(url);
+    }catch(e){
+      if(first && top !== 200) return fetchAllListItems(listId, selectFields, 200);
+      throw e;
+    }
+    first = false;
     items = items.concat(data.value||[]);
     url = data['@odata.nextLink'] || null;
   }
@@ -1295,12 +1314,20 @@ async function startApp(){
   setAuthGateMsg('A ligar ao SharePoint...');
   try{
     siteId = await getSiteId();
-    fornecedoresListId = await getListId(FORNECEDORES_LIST_NAME);
-    faturasListId = await getListId(FATURAS_LIST_NAME);
-    clientesListId = await getListId(CLIENTES_LIST_NAME);
-    faturasEmitidasListId = await getListId(FATURAS_EMITIDAS_LIST_NAME);
+
+    // Resolver os ids das listas todos ao mesmo tempo (partilham o mesmo
+    // catálogo de listas do site — ver fetchSiteListsCatalog — em vez de cada
+    // um pedir essa lista de novo, um a seguir ao outro).
+    [fornecedoresListId, faturasListId, clientesListId, faturasEmitidasListId] = await Promise.all([
+      getListId(FORNECEDORES_LIST_NAME),
+      getListId(FATURAS_LIST_NAME),
+      getListId(CLIENTES_LIST_NAME),
+      getListId(FATURAS_EMITIDAS_LIST_NAME)
+    ]);
+
+    let historicoListIds = [];
     try{
-      let historicoListIds = await getAllListIds(HISTORICO_LIST_NAME);
+      historicoListIds = await getAllListIds(HISTORICO_LIST_NAME);
       if(!historicoListIds.length){
         const created = await ensureHistoricoList();
         historicoListIds = created ? [created] : [];
@@ -1315,38 +1342,7 @@ async function startApp(){
       if(historicoListIds.length > 1){
         console.warn(`Atenção: encontradas ${historicoListIds.length} listas "${HISTORICO_LIST_NAME}" no SharePoint — a juntar os registos de todas.`);
       }
-      if(historicoListIds.length){
-        const allSpHist = [];
-        for(const lid of historicoListIds){
-          const spHist = await fetchAllListItems(lid, 'FaturaSpId,TipoFatura,Referencia,Resumo');
-          allSpHist.push(...spHist);
-        }
-        state.historico = allSpHist.map(item=>{
-          const f = item.fields||{};
-          return {
-            faturaSpId: f.FaturaSpId||'', tipoFatura: f.TipoFatura||'', referencia: f.Referencia||'', resumo: f.Resumo||'',
-            por: displayNameFromGraphUser(item.createdBy),
-            em: item.createdDateTime || null
-          };
-        });
-      }
-    }catch(e){ console.error('Erro a carregar histórico de alterações', e); }
-
-    setAuthGateMsg('A carregar fornecedores...');
-    if(fornecedoresListId){
-      const spItems = await fetchAllListItems(fornecedoresListId, 'LegacyId,Title,field_1,field_2,field_3,field_4,field_5,field_6,field_7,field_8,field_9,field_10,field_11,field_12,field_13');
-      state.suppliers = spItems.map(mapSpToSupplier);
-    }
-
-    setAuthGateMsg('A carregar clientes...');
-    if(clientesListId){
-      const spClients = await fetchAllListItems(clientesListId, 'LegacyId,Title,field_1,field_2,field_3,field_4,field_5,field_6,field_7,field_8,field_9,field_10,field_11,field_12,field_13');
-      state.clients = spClients.map(mapSpToClient);
-    }
-    if(faturasEmitidasListId){
-      const spFe = await fetchAllListItems(faturasEmitidasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,DataEmissao,DataVencimento,Valor,Status,DataPagamento,Notas,AnexoUrl,AnexoNome');
-      mapIssuedInvoicesWithClienteIds(spFe);
-    }
+    }catch(e){ console.error('Erro a resolver lista de histórico', e); }
 
     if(!faturasListId){
       setAuthGateSpinner(false);
@@ -1359,8 +1355,36 @@ async function startApp(){
       return;
     }
 
-    setAuthGateMsg('A carregar faturas...');
-    const spInvoices = await fetchAllListItems(faturasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,Valor,Status,DataPagamento,Notas,AnexoUrl,AnexoNome');
+    // Vão-se buscar TODAS as listas ao mesmo tempo (em vez de uma a seguir à
+    // outra) — isto é o que mais pesa no arranque, porque a lista de Faturas
+    // tem milhares de registos e demora várias dezenas de pedidos paginados;
+    // ao paralelizar com as restantes listas, o tempo total passa a ser o da
+    // lista mais lenta, em vez da soma de todas.
+    setAuthGateMsg('A carregar dados do SharePoint...');
+    let loadedCount = 0;
+    const totalToLoad = 3 + historicoListIds.length;
+    const trackLoad = p => p.then(r => { loadedCount++; setAuthGateMsg(`A carregar dados do SharePoint... (${loadedCount}/${totalToLoad})`); return r; });
+
+    const [spFornecedores, spClientes, spFaturasEmitidas, spInvoices, ...spHistArrays] = await Promise.all([
+      trackLoad(fornecedoresListId ? fetchAllListItems(fornecedoresListId, 'LegacyId,Title,field_1,field_2,field_3,field_4,field_5,field_6,field_7,field_8,field_9,field_10,field_11,field_12,field_13') : Promise.resolve([])),
+      trackLoad(clientesListId ? fetchAllListItems(clientesListId, 'LegacyId,Title,field_1,field_2,field_3,field_4,field_5,field_6,field_7,field_8,field_9,field_10,field_11,field_12,field_13') : Promise.resolve([])),
+      trackLoad(faturasEmitidasListId ? fetchAllListItems(faturasEmitidasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,DataEmissao,DataVencimento,Valor,Status,DataPagamento,Notas,AnexoUrl,AnexoNome') : Promise.resolve([])),
+      fetchAllListItems(faturasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,Valor,Status,DataPagamento,Notas,AnexoUrl,AnexoNome'),
+      ...historicoListIds.map(lid => trackLoad(fetchAllListItems(lid, 'FaturaSpId,TipoFatura,Referencia,Resumo')))
+    ]);
+
+    state.suppliers = spFornecedores.map(mapSpToSupplier);
+    state.clients = spClientes.map(mapSpToClient);
+    mapIssuedInvoicesWithClienteIds(spFaturasEmitidas);
+    state.historico = spHistArrays.flat().map(item=>{
+      const f = item.fields||{};
+      return {
+        faturaSpId: f.FaturaSpId||'', tipoFatura: f.TipoFatura||'', referencia: f.Referencia||'', resumo: f.Resumo||'',
+        por: displayNameFromGraphUser(item.createdBy),
+        em: item.createdDateTime || null
+      };
+    });
+
     if(spInvoices.length === 0){
       setAuthGateSpinner(false);
       setAuthGateMsg('A lista "Faturas" existe mas está vazia. Importar os dados iniciais (12 093 faturas)?');
