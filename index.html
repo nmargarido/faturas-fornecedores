@@ -819,7 +819,11 @@ async function uploadFaturaAnexo(file, subfolder, baseName){
     throw new Error('Ficheiro demasiado grande (máx. 4MB).');
   }
   const token = await getGraphToken();
-  const safeName = (baseName||'anexo').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9 ._-]+/g,'_').trim() || 'anexo';
+  // O link do OneDrive (AnexoUrl) \u00e9 gravado numa coluna de texto do SharePoint,
+  // que tem um limite de 255 caracteres. Limitamos o nome do ficheiro a 40
+  // caracteres \u2014 suficiente para o identificar \u2014 para nunca contribuirmos
+  // desnecessariamente para esse limite, seja qual for o tipo de ficheiro.
+  const safeName = ((baseName||'anexo').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9 ._-]+/g,'_').trim() || 'anexo').slice(0, 40);
   const extMatch = /\.[a-zA-Z0-9]+$/.exec(file.name||'');
   const ext = extMatch ? extMatch[0] : '';
   const filename = `${safeName}_${Date.now()}${ext}`;
@@ -843,7 +847,24 @@ async function uploadFaturaAnexo(file, subfolder, baseName){
     throw new Error(`Falha ao enviar anexo (Graph ${res.status}): ${t.slice(0,200)}`);
   }
   const data = await res.json();
-  return { url: data.webUrl || '', nome: filename };
+
+  // Para documentos do Office (Word/Excel/PowerPoint), o "webUrl" que o Graph
+  // devolve costuma ser um link do tipo ".../doc.aspx?sourcedoc={GUID}&file=...
+  // &action=default" (pensado para abrir o ficheiro em edição/preview online),
+  // que facilmente ultrapassa os 255 caracteres da coluna "AnexoUrl" e faz a
+  // gravação da fatura falhar com um erro genérico do SharePoint. Para PDFs e
+  // imagens o link devolvido costuma ser o caminho direto ao ficheiro, mais
+  // curto, e esse continua a ser usado sem alterações. Só quando o link vem
+  // demasiado comprido é que construímos nós o link direto (o mesmo caminho
+  // que usámos para enviar o ficheiro), que é sempre curto e continua a abrir
+  // o ficheiro corretamente.
+  let url = data.webUrl || '';
+  if(url.length > 240){
+    const tenant = SITE_HOSTNAME.split('.')[0];
+    const upnSlug = ONEDRIVE_OWNER_UPN.replace(/[^a-zA-Z0-9]+/g, '_');
+    url = `https://${tenant}-my.sharepoint.com/personal/${upnSlug}/Documents/${ONEDRIVE_ROOT_FOLDER}/${subfolder}/${encodeURIComponent(filename)}`;
+  }
+  return { url, nome: filename };
 }
 
 
