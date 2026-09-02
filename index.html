@@ -511,7 +511,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn danger" id="btnDeleteFatura" style="display:none;margin-right:auto;">Apagar</button>
-      <button class="btn secondary" onclick="closeModal('modalFatura')">Cancelar</button>
+      <button class="btn secondary" onclick="tryCloseFaturaModal()">Cancelar</button>
       <button class="btn" id="btnSaveFatura">Guardar</button>
     </div>
   </div>
@@ -604,7 +604,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn danger" id="btnDeleteFaturaEmitida" style="display:none;margin-right:auto;">Apagar</button>
-      <button class="btn secondary" onclick="closeModal('modalFaturaEmitida')">Cancelar</button>
+      <button class="btn secondary" onclick="tryCloseFaturaEmitidaModal()">Cancelar</button>
       <button class="btn" id="btnSaveFaturaEmitida">Guardar</button>
     </div>
   </div>
@@ -1478,8 +1478,49 @@ function switchView(name){
 /* ====================== MODALS ====================== */
 function openModal(id){ document.getElementById(id).classList.add('active'); }
 function closeModal(id){ document.getElementById(id).classList.remove('active'); }
+
+// Proteção contra perda acidental de trabalho: os modais de Nova/Editar fatura
+// (recebida e emitida) são longos e é fácil clicar sem querer fora deles (no
+// fundo escurecido) e fechar tudo sem aviso. Guardamos uma "fotografia" dos
+// campos assim que o modal abre; se ao tentar fechar (pelo fundo ou pelo botão
+// Cancelar) algo tiver mudado desde então, pedimos confirmação antes de
+// fechar. Fechar depois de gravar com sucesso continua instantâneo, porque
+// esses pontos chamam closeModal() diretamente, sem passar por aqui.
+const FIN_FORM_FIELDS = ['finFornecedorSearch','finFornecedorId','finEntidade','finTipo','finNumeroDoc','finMesFactura','finValor','finStatus','finDataPgto','finNotas'];
+const FEIN_FORM_FIELDS = ['feinClienteSearch','feinClienteId','feinEntidade','feinTipo','feinNumeroDoc','feinMesFactura','feinDataEmissao','feinDataVencimento','feinValor','feinStatus','feinDataPgto','feinNotas'];
+let finFormOpenSnapshot = '';
+let feinFormOpenSnapshot = '';
+
+function formSnapshot(fieldIds, fileInputId){
+  const parts = fieldIds.map(id => document.getElementById(id).value);
+  if(fileInputId){
+    const fi = document.getElementById(fileInputId);
+    const f = fi.files && fi.files[0];
+    parts.push(f ? `${f.name}:${f.size}` : '');
+    parts.push(fi.dataset.remover || '');
+  }
+  return parts.join('|');
+}
+
+function confirmDiscardIfChanged(fieldIds, fileInputId, openSnapshot){
+  if(formSnapshot(fieldIds, fileInputId) === openSnapshot) return true;
+  return confirm('Tens alterações por guardar nesta fatura.\n\nSe fechares agora, vais perdê-las. Fechar mesmo assim?');
+}
+
+function tryCloseFaturaModal(){
+  if(confirmDiscardIfChanged(FIN_FORM_FIELDS, 'finAnexoFile', finFormOpenSnapshot)) closeModal('modalFatura');
+}
+function tryCloseFaturaEmitidaModal(){
+  if(confirmDiscardIfChanged(FEIN_FORM_FIELDS, 'feinAnexoFile', feinFormOpenSnapshot)) closeModal('modalFaturaEmitida');
+}
+
 document.querySelectorAll('.modal-overlay').forEach(ov=>{
-  ov.addEventListener('click', e=>{ if(e.target===ov) closeModal(ov.id); });
+  ov.addEventListener('click', e=>{
+    if(e.target!==ov) return;
+    if(ov.id==='modalFatura'){ tryCloseFaturaModal(); return; }
+    if(ov.id==='modalFaturaEmitida'){ tryCloseFaturaEmitidaModal(); return; }
+    closeModal(ov.id);
+  });
 });
 
 /* ====================== DASHBOARD ====================== */
@@ -2590,6 +2631,7 @@ function openFaturaModal(invId, presetFornecedorId){
   document.getElementById('btnDeleteFatura').style.display = inv ? 'inline-block' : 'none';
   updateFinDataLabel();
   renderTimelineInto('finTimeline','finTimelineWrap','Recebida', inv? inv.spId : null);
+  finFormOpenSnapshot = formSnapshot(FIN_FORM_FIELDS, 'finAnexoFile');
   openModal('modalFatura');
 }
 document.getElementById('finAnexoRemoverBtn').addEventListener('click', ()=>{
@@ -2952,6 +2994,7 @@ function openFaturaEmitidaModal(invId, presetClienteId){
   document.getElementById('btnDeleteFaturaEmitida').style.display = inv ? 'inline-block' : 'none';
   updateFeinDataLabel();
   renderTimelineInto('feinTimeline','feinTimelineWrap','Emitida', inv? inv.spId : null);
+  feinFormOpenSnapshot = formSnapshot(FEIN_FORM_FIELDS, 'feinAnexoFile');
   openModal('modalFaturaEmitida');
 }
 document.getElementById('feinAnexoRemoverBtn').addEventListener('click', ()=>{
