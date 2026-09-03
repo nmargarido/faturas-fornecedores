@@ -201,7 +201,6 @@
     <button data-view="faturas">Faturas Recebidas</button>
     <button data-view="clientes">Clientes</button>
     <button data-view="faturasEmitidas">Faturas Emitidas</button>
-    <button data-view="relatorios">Relatórios</button>
     <button data-view="atividade">Atividade</button>
     <button data-view="backup">Conta</button>
   </nav>
@@ -346,52 +345,6 @@
       </table></div>
       <div class="empty" id="feEmpty" style="display:none;">Sem faturas emitidas para os filtros escolhidos.</div>
       <div class="pagination" id="fePagination"></div>
-    </div>
-  </div>
-
-  <!-- RELATORIOS -->
-  <div class="view" id="view-relatorios">
-    <div class="card">
-      <h2>Relatório de faturas</h2>
-      <div class="sub">Filtra por período (mês da fatura), empresa e estado.</div>
-      <div class="form-grid">
-        <div class="form-row">
-          <label>De</label>
-          <div style="display:flex;gap:8px;">
-            <select id="relMesDe" style="flex:1;"></select>
-            <select id="relAnoDe" style="flex:1;"></select>
-          </div>
-        </div>
-        <div class="form-row">
-          <label>Até</label>
-          <div style="display:flex;gap:8px;">
-            <select id="relMesAte" style="flex:1;"></select>
-            <select id="relAnoAte" style="flex:1;"></select>
-          </div>
-        </div>
-      </div>
-      <div class="form-row"><label>Empresa</label><select id="relEmpresaFilter"><option value="">Todas as empresas</option></select></div>
-      <div class="form-row">
-        <label>Estado</label>
-        <div id="relEstadoFilter" style="display:flex;flex-wrap:wrap;gap:12px;"></div>
-      </div>
-      <div class="grid-stats" style="margin-top:6px;">
-        <div class="card" style="padding:12px 16px;margin-bottom:0;">
-          <div class="sub" style="margin-bottom:2px;">Nº de faturas no período</div>
-          <div style="font-size:22px;font-weight:700;" id="relTotalCount">0</div>
-        </div>
-        <div class="card" style="padding:12px 16px;margin-bottom:0;">
-          <div class="sub" style="margin-bottom:2px;">Valor total no período</div>
-          <div style="font-size:22px;font-weight:700;" id="relTotalValor">€0,00</div>
-        </div>
-      </div>
-      <div class="table-scroll"><table class="table-responsive" style="margin-top:16px;">
-        <thead><tr><th>Fornecedor</th><th>Empresa</th><th>Nº Doc</th><th>Estado</th><th>Mês fatura</th><th class="num">Valor</th></tr></thead>
-        <tbody id="relResultBody"></tbody>
-        <tfoot><tr style="font-weight:700;border-top:2px solid var(--border);">
-          <td colspan="5" data-label="">Total</td><td class="num" id="relResultTotal" data-label="Total"></td>
-        </tr></tfoot>
-      </table></div>
     </div>
   </div>
 
@@ -1313,7 +1266,7 @@ async function resumeBulkImport(){
     const spInv2 = await fetchAllListItems(faturasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,Valor,Status,DataPagamento,Notas,AnexoUrl,AnexoNome');
     mapInvoicesWithFornecedorIds(spInv2);
     populateAnoFilter();
-    renderDashboard(); renderFaturasTab(); renderRelatorios(); renderAccountStatus();
+    renderDashboard(); renderFaturasTab(); renderAccountStatus();
     setTimeout(()=>{ document.getElementById('authGate').style.display='none'; }, 1500);
   }catch(e){
     console.error(e);
@@ -1470,7 +1423,6 @@ function switchView(name){
   if(name==='faturas') renderFaturasTab();
   if(name==='clientes') { showClienteList(); renderClientesGrid(); }
   if(name==='faturasEmitidas') renderFaturasEmitidasTab();
-  if(name==='relatorios') renderRelatorios();
   if(name==='atividade') renderAtividade();
   if(name==='backup') renderAccountStatus();
 }
@@ -3152,86 +3104,8 @@ document.getElementById('clienteSearch').addEventListener('input', ()=>{clientes
 document.getElementById('feSearch').addEventListener('input', ()=>{fePage=0; renderFaturasEmitidasTab();});
 document.getElementById('feStatusFilter').addEventListener('change', ()=>{fePage=0; renderFaturasEmitidasTab();});
 
-/* ====================== RELATORIOS ====================== */
-function populateRelatorioFilters(){
-  const empSel = document.getElementById('relEmpresaFilter');
-  const prevEmp = empSel.value;
-  empSel.innerHTML = '<option value="">Todas as empresas</option>' + state.entidades.map(e=>`<option value="${escapeHtml(e)}">${escapeHtml(e)}</option>`).join('');
-  empSel.value = prevEmp;
-
-  const estadoBox = document.getElementById('relEstadoFilter');
-  if(!estadoBox.dataset.built){
-    estadoBox.innerHTML = state.statuses.map(s=>`
-      <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-weight:400;">
-        <input type="checkbox" class="relEstadoChk" value="${escapeHtml(s)}" checked> ${escapeHtml(s)}
-      </label>`).join('');
-    estadoBox.dataset.built = '1';
-    estadoBox.querySelectorAll('.relEstadoChk').forEach(chk=>chk.addEventListener('change', renderRelatorios));
-  }
-
-  if(!document.getElementById('relMesDe').dataset.built){
-    const monthNames = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-    const monthOptionsHtml = '<option value="">Mês</option>' + monthNames.map((n,i)=>`<option value="${String(i+1).padStart(2,'0')}">${n}</option>`).join('');
-    const nowYear = new Date().getFullYear();
-    const anoOptionsHtml = '<option value="">Ano</option>' + Array.from({length:8},(_,i)=>nowYear+1-i).map(y=>`<option value="${y}">${y}</option>`).join('');
-    ['relMesDe','relMesAte'].forEach(id=>{
-      const sel = document.getElementById(id);
-      sel.innerHTML = monthOptionsHtml; sel.dataset.built = '1';
-      sel.addEventListener('change', renderRelatorios);
-    });
-    ['relAnoDe','relAnoAte'].forEach(id=>{
-      const sel = document.getElementById(id);
-      sel.innerHTML = anoOptionsHtml; sel.dataset.built = '1';
-      sel.addEventListener('change', renderRelatorios);
-    });
-  }
-}
-
-function buildYearMonth(mesSelId, anoSelId, isEnd){
-  const ano = document.getElementById(anoSelId).value;
-  if(!ano) return '';
-  const mes = document.getElementById(mesSelId).value || (isEnd ? '12' : '01');
-  return `${ano}-${mes}`;
-}
-
-function renderRelatorios(){
-  populateRelatorioFilters();
-
-  const de = buildYearMonth('relMesDe','relAnoDe', false);
-  const ate = buildYearMonth('relMesAte','relAnoAte', true);
-  const emp = document.getElementById('relEmpresaFilter').value;
-  const estadosSelecionados = Array.from(document.querySelectorAll('.relEstadoChk'))
-    .filter(chk=>chk.checked).map(chk=>chk.value);
-
-  const filtered = state.invoices.filter(i=>{
-    const mes = i.mes_factura ? i.mes_factura.slice(0,7) : '';
-    if(de && (!mes || mes < de)) return false;
-    if(ate && (!mes || mes > ate)) return false;
-    if(emp && i.entidade !== emp) return false;
-    if(!estadosSelecionados.includes(i.status)) return false;
-    return true;
-  }).slice().sort((a,b)=>(b.mes_factura||'').localeCompare(a.mes_factura||''));
-
-  document.getElementById('relResultBody').innerHTML = filtered.map(i=>`
-    <tr>
-      <td data-label="Fornecedor">${escapeHtml(i.fornecedor_nome)}</td>
-      <td data-label="Empresa"><span class="pill">${escapeHtml(i.entidade||'—')}</span></td>
-      <td data-label="Nº Doc">${escapeHtml(i.numero_doc||'—')}</td>
-      <td data-label="Estado">${statusBadge(i.status)}</td>
-      <td data-label="Mês fatura">${fmtMonth(i.mes_factura)}</td>
-      <td class="num" data-label="Valor">${fmtCurrency(i.valor)}</td>
-    </tr>`).join('') || '<tr><td colspan="6" class="empty">Sem faturas para os filtros escolhidos.</td></tr>';
-
-  const totalValor = filtered.reduce((a,i)=>a+i.valor,0);
-  document.getElementById('relTotalCount').textContent = filtered.length;
-  document.getElementById('relTotalValor').textContent = fmtCurrency(totalValor);
-  document.getElementById('relResultTotal').textContent = fmtCurrency(totalValor);
-}
-document.getElementById('relEmpresaFilter').addEventListener('change', renderRelatorios);
-
 /* ====================== ATIVIDADE ====================== */
-let atividadePage = 0;
-const ATIVIDADE_PAGE_SIZE = 50;
+const ATIVIDADE_LIMIT = 50;
 
 function populateAtividadeUserFilter(){
   const sel = document.getElementById('atividadeUserFilter');
@@ -3257,9 +3131,7 @@ function renderAtividade(){
   list = list.slice().sort((a,b)=> new Date(b.em) - new Date(a.em));
 
   const total = list.length;
-  const pages = Math.max(1, Math.ceil(total/ATIVIDADE_PAGE_SIZE));
-  atividadePage = Math.min(atividadePage, pages-1);
-  const pageItems = list.slice(atividadePage*ATIVIDADE_PAGE_SIZE, (atividadePage+1)*ATIVIDADE_PAGE_SIZE);
+  const pageItems = list.slice(0, ATIVIDADE_LIMIT);
 
   document.getElementById('atividadeEmpty').style.display = total ? 'none':'block';
   document.getElementById('atividadeBody').innerHTML = pageItems.map(h=>`
@@ -3271,16 +3143,13 @@ function renderAtividade(){
       <td data-label="Alteração" style="white-space:pre-line;">${escapeHtml(h.resumo||'—')}</td>
     </tr>`).join('');
 
-  document.getElementById('atividadePagination').innerHTML = `
-    <span>${total} registo${total===1?'':'s'}</span>
-    <button ${atividadePage===0?'disabled':''} onclick="atividadePage--;renderAtividade()">‹</button>
-    <span>Página ${atividadePage+1} / ${pages}</span>
-    <button ${atividadePage>=pages-1?'disabled':''} onclick="atividadePage++;renderAtividade()">›</button>
-  `;
+  document.getElementById('atividadePagination').innerHTML = total > ATIVIDADE_LIMIT
+    ? `<span>A mostrar os ${ATIVIDADE_LIMIT} registos mais recentes (de ${total}).</span>`
+    : `<span>${total} registo${total===1?'':'s'}</span>`;
 }
-document.getElementById('atividadeSearch').addEventListener('input', ()=>{atividadePage=0; renderAtividade();});
-document.getElementById('atividadeUserFilter').addEventListener('change', ()=>{atividadePage=0; renderAtividade();});
-document.getElementById('atividadeTipoFilter').addEventListener('change', ()=>{atividadePage=0; renderAtividade();});
+document.getElementById('atividadeSearch').addEventListener('input', renderAtividade);
+document.getElementById('atividadeUserFilter').addEventListener('change', renderAtividade);
+document.getElementById('atividadeTipoFilter').addEventListener('change', renderAtividade);
 
 /* ====================== CONTA / BACKUP ====================== */
 function renderAccountStatus(){
@@ -3297,7 +3166,7 @@ document.getElementById('btnRefreshData').addEventListener('click', async ()=>{
     const spInv = await fetchAllListItems(faturasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,Valor,Status,DataPagamento,Notas,AnexoUrl,AnexoNome');
     mapInvoicesWithFornecedorIds(spInv);
     populateAnoFilter();
-    renderDashboard(); renderFornecedoresGrid(); renderFaturasTab(); renderRelatorios(); renderAccountStatus();
+    renderDashboard(); renderFornecedoresGrid(); renderFaturasTab(); renderAccountStatus();
     showToast('Dados atualizados');
   }catch(e){ console.error(e); showToast('Erro ao atualizar: ' + e.message); }
 });
@@ -3327,7 +3196,7 @@ function populateEntidadeFilters(){
 }
 
 function initAfterStateChange(){
-  fornecedoresPage = 0; faturasPage = 0; clientesPage = 0; fePage = 0; atividadePage = 0;
+  fornecedoresPage = 0; faturasPage = 0; clientesPage = 0; fePage = 0;
   populateAnoFilter();
   renderFeFilters();
   renderDashboard();
@@ -3337,7 +3206,6 @@ function initAfterStateChange(){
   showClienteList();
   renderClientesGrid();
   renderFaturasEmitidasTab();
-  renderRelatorios();
   renderAtividade();
 }
 
@@ -3345,7 +3213,7 @@ document.querySelectorAll('#mainNav button').forEach(btn=>{
   btn.addEventListener('click', ()=>switchView(btn.dataset.view));
 });
 document.getElementById('entidadeGlobalFilter').addEventListener('change', ()=>{
-  renderDashboard(); renderFaturasTab(); renderRelatorios(); renderFornecedoresGrid();
+  renderDashboard(); renderFaturasTab(); renderFornecedoresGrid();
 });
 document.getElementById('dashUserFilter').addEventListener('change', renderDashboard);
 document.getElementById('fornecedorSearch').addEventListener('input', ()=>{fornecedoresPage=0; renderFornecedoresGrid();});
