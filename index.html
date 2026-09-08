@@ -1690,6 +1690,7 @@ function renderFornecedorDetailShell(){
     </div>
     <div class="card">
       <div class="tag-row">
+        <button class="filter-chip ${fdState.tab==='Todas'?'active':''}" onclick="setFdTab('Todas')">Todas (${invs.length})</button>
         <button class="filter-chip ${fdState.tab==='Paga'?'active':''}" onclick="setFdTab('Paga')">F. Pagas (${pagas.length})</button>
         <button class="filter-chip ${fdState.tab==='Pendente'?'active':''}" onclick="setFdTab('Pendente')">F. Pendentes (${pendentes.length})</button>
         ${outras.length? `<button class="filter-chip ${fdState.tab==='Outras'?'active':''}" onclick="setFdTab('Outras')">Outras (${outras.length})</button>` : ''}
@@ -1720,7 +1721,8 @@ function renderFdInvoicesTable(){
     return true;
   });
   let list;
-  if(fdState.tab==='Paga') list = invs.filter(i=>i.status==='Paga');
+  if(fdState.tab==='Todas') list = invs;
+  else if(fdState.tab==='Paga') list = invs.filter(i=>i.status==='Paga');
   else if(fdState.tab==='Pendente') list = invs.filter(i=>i.status==='Pendente');
   else list = invs.filter(i=>i.status!=='Paga' && i.status!=='Pendente');
   list = list.slice().sort((a,b)=>(b.mes_factura||'').localeCompare(a.mes_factura||''));
@@ -1748,6 +1750,7 @@ function exportFdInvoicesExcel(){
     if(fdState.meses.size && !fdState.meses.has((i.mes_factura||'').slice(5,7))) return false;
     return true;
   }).filter(i=>{
+    if(fdState.tab==='Todas') return true;
     if(fdState.tab==='Paga') return i.status==='Paga';
     if(fdState.tab==='Pendente') return i.status==='Pendente';
     return i.status!=='Paga' && i.status!=='Pendente';
@@ -1818,6 +1821,7 @@ function exportFdInvoicesPDF(){
     if(fdState.meses.size && !fdState.meses.has((i.mes_factura||'').slice(5,7))) return false;
     return true;
   }).filter(i=>{
+    if(fdState.tab==='Todas') return true;
     if(fdState.tab==='Paga') return i.status==='Paga';
     if(fdState.tab==='Pendente') return i.status==='Pendente';
     return i.status!=='Paga' && i.status!=='Pendente';
@@ -1864,7 +1868,7 @@ function exportFdInvoicesPDF(){
 
   const anosLabel = fdState.anos.size ? Array.from(fdState.anos).sort().join(', ') : 'Todos';
   const mesesLabel = fdState.meses.size ? Array.from(fdState.meses).sort().map(m=>MESES_OPTS.find(o=>o.value===m)?.label||m).join(', ') : 'Todos';
-  const tabLabel = fdState.tab==='Paga' ? 'Pagas' : (fdState.tab==='Pendente' ? 'Pendentes' : 'Outras');
+  const tabLabel = fdState.tab==='Todas' ? 'Todas' : (fdState.tab==='Paga' ? 'Pagas' : (fdState.tab==='Pendente' ? 'Pendentes' : 'Outras'));
   doc.setFontSize(9);
   doc.text('Período: ' + anosLabel + '  ·  Meses: ' + mesesLabel + '  ·  Estado: ' + tabLabel, 14, y+3);
   y += 10;
@@ -1892,6 +1896,7 @@ function exportFdInvoicesPDF(){
 
   const total = invs.reduce((a,i)=>a+(i.valor||0),0);
   const totalLabel = fdState.tab==='Paga' ? 'Total Pago' : (fdState.tab==='Pendente' ? 'Total Pendente' : 'Total');
+  // Nota: 'Todas' e 'Outras' usam ambos a etiqueta genérica 'Total'.
 
   doc.autoTable({
     startY: y,
@@ -2124,6 +2129,7 @@ function renderClienteDetailShell(){
     </div>
     <div class="card">
       <div class="tag-row">
+        <button class="filter-chip ${cdState.tab==='Todas'?'active':''}" onclick="setCdTab('Todas')">Todas (${invs.length})</button>
         <button class="filter-chip ${cdState.tab==='Pendente'?'active':''}" onclick="setCdTab('Pendente')">F. Pendentes (${pendentes.length})</button>
         <button class="filter-chip ${cdState.tab==='Paga'?'active':''}" onclick="setCdTab('Paga')">F. Pagas (${pagas.length})</button>
         ${vencidas.length? `<button class="filter-chip ${cdState.tab==='Vencida'?'active':''}" onclick="setCdTab('Vencida')">Vencidas (${vencidas.length})</button>` : ''}
@@ -2154,7 +2160,8 @@ function renderCdInvoicesTable(){
     return true;
   });
   let list;
-  if(cdState.tab==='Pendente') list = invs.filter(i=>i.status==='Pendente');
+  if(cdState.tab==='Todas') list = invs;
+  else if(cdState.tab==='Pendente') list = invs.filter(i=>i.status==='Pendente');
   else if(cdState.tab==='Paga') list = invs.filter(i=>i.status==='Paga');
   else list = invs.filter(i=>i.status==='Vencida');
   list = list.slice().sort((a,b)=>(b.mes_factura||'').localeCompare(a.mes_factura||''));
@@ -2182,6 +2189,7 @@ function exportCdInvoicesExcel(){
     if(cdState.meses.size && !cdState.meses.has((i.mes_factura||'').slice(5,7))) return false;
     return true;
   }).filter(i=>{
+    if(cdState.tab==='Todas') return true;
     if(cdState.tab==='Pendente') return i.status==='Pendente';
     if(cdState.tab==='Paga') return i.status==='Paga';
     return i.status==='Vencida';
@@ -2202,7 +2210,7 @@ function exportCdInvoicesExcel(){
   }));
 
   const totalCd = invs.reduce((a,i)=>a+(i.valor||0),0);
-  const totalLabelCd = cdState.tab==='Pendente' ? 'Total Pendente' : (cdState.tab==='Paga' ? 'Total Pago' : 'Total Vencido');
+  const totalLabelCd = cdState.tab==='Todas' ? 'Total' : (cdState.tab==='Pendente' ? 'Total Pendente' : (cdState.tab==='Paga' ? 'Total Pago' : 'Total Vencido'));
   rows.push({ 'NIPC':'', 'Cliente':'', 'Empresa':'', 'Estado':'', 'Data vencimento':'', 'Tipo':'', 'Mês':'', 'Nº Doc': totalLabelCd, 'Valor': totalCd });
 
   const ws = XLSX.utils.json_to_sheet(rows);
@@ -2225,6 +2233,7 @@ function exportCdInvoicesPDF(){
     if(cdState.meses.size && !cdState.meses.has((i.mes_factura||'').slice(5,7))) return false;
     return true;
   }).filter(i=>{
+    if(cdState.tab==='Todas') return true;
     if(cdState.tab==='Pendente') return i.status==='Pendente';
     if(cdState.tab==='Paga') return i.status==='Paga';
     return i.status==='Vencida';
@@ -2271,7 +2280,7 @@ function exportCdInvoicesPDF(){
 
   const anosLabel = cdState.anos.size ? Array.from(cdState.anos).sort().join(', ') : 'Todos';
   const mesesLabel = cdState.meses.size ? Array.from(cdState.meses).sort().map(m=>MESES_OPTS.find(o=>o.value===m)?.label||m).join(', ') : 'Todos';
-  const tabLabel = cdState.tab==='Pendente' ? 'Pendentes' : (cdState.tab==='Paga' ? 'Pagas' : 'Vencidas');
+  const tabLabel = cdState.tab==='Todas' ? 'Todas' : (cdState.tab==='Pendente' ? 'Pendentes' : (cdState.tab==='Paga' ? 'Pagas' : 'Vencidas'));
   doc.setFontSize(9);
   doc.text('Período: ' + anosLabel + '  ·  Meses: ' + mesesLabel + '  ·  Estado: ' + tabLabel, 14, y+3);
   y += 10;
@@ -2298,7 +2307,7 @@ function exportCdInvoicesPDF(){
   y += 8;
 
   const total = invs.reduce((a,i)=>a+(i.valor||0),0);
-  const totalLabel = cdState.tab==='Pendente' ? 'Total Pendente' : (cdState.tab==='Paga' ? 'Total Pago' : 'Total Vencido');
+  const totalLabel = cdState.tab==='Todas' ? 'Total' : (cdState.tab==='Pendente' ? 'Total Pendente' : (cdState.tab==='Paga' ? 'Total Pago' : 'Total Vencido'));
 
   doc.autoTable({
     startY: y,
