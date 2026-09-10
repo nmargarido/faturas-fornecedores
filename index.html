@@ -947,6 +947,15 @@ async function logHistorico(tipoFatura, faturaSpId, referencia, linhas){
     });
   }catch(e){
     console.error('Erro a gravar histórico de alterações', e);
+    // Antes isto falhava completamente em silêncio (só na consola) — se um
+    // utilizador tiver acesso às listas de faturas mas não à lista
+    // "HistoricoAlteracoes" (ex: permissões dadas lista-a-lista em vez de a
+    // todo o site), a fatura gravava-se na mesma mas nunca aparecia nada
+    // na Atividade para essa pessoa, sem ninguém dar por isso. Agora avisa.
+    const isPermissionError = /Graph 40[13]/.test(e.message||'');
+    showToast(isPermissionError
+      ? 'A fatura foi gravada, mas não foi possível registar em Atividade (sem permissão na lista "HistoricoAlteracoes" no SharePoint).'
+      : 'A fatura foi gravada, mas houve um erro a registar em Atividade: ' + e.message);
   }
 }
 
