@@ -16,12 +16,12 @@
   }
   *{box-sizing:border-box;}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);}
-  header{background:var(--navy);border-bottom:3px solid var(--gold);padding:15px 24px;display:flex;align-items:center;gap:20px;position:sticky;top:0;z-index:50;flex-wrap:wrap;}
+  header{background:var(--navy);border-bottom:3px solid var(--gold);padding:20px 28px;display:flex;align-items:center;gap:22px;position:sticky;top:0;z-index:50;flex-wrap:wrap;}
   .header-brand{display:flex;align-items:center;gap:12px;}
-  .header-logo{height:50px;width:auto;display:block;border-radius:6px;background:#fff;padding:4px 10px;box-shadow:0 1px 2px rgba(0,0,0,.15);}
-  header h1{font-size:19px;margin:0;font-weight:700;white-space:nowrap;color:#fff;letter-spacing:.01em;}
+  .header-logo{height:60px;width:auto;display:block;border-radius:6px;background:#fff;padding:4px 10px;box-shadow:0 1px 2px rgba(0,0,0,.15);}
+  header h1{font-size:22px;margin:0;font-weight:700;white-space:nowrap;color:#fff;letter-spacing:.01em;}
   nav{display:flex;gap:4px;flex-wrap:wrap;}
-  nav button{background:none;border:none;padding:10px 16px;border-radius:8px;font-size:14.5px;cursor:pointer;color:#fff;font-weight:600;}
+  nav button{background:none;border:none;padding:12px 20px;border-radius:8px;font-size:16.5px;cursor:pointer;color:#fff;font-weight:600;}
   nav button.active{background:rgba(250,196,21,.16);color:var(--gold);}
   nav button:hover{background:rgba(255,255,255,.08);}
   .spacer{flex:1;}
@@ -29,6 +29,8 @@
   select:focus, input:focus, textarea:focus{outline:2px solid var(--accent-light);border-color:var(--accent);}
   input[type=checkbox], input[type=radio]{width:auto;padding:0;border:none;border-radius:0;background:none;accent-color:var(--accent);}
   header select, header .pill{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.25);}
+  header select{font-size:15.5px;padding:9px 12px;}
+  header .pill{font-size:14px;padding:7px 14px;}
   header select option{color:var(--text);}
   main{padding:24px;max-width:1180px;margin:0 auto;}
   .view{display:none;}
@@ -145,13 +147,13 @@
     .detail-grid{grid-template-columns:1fr 1fr;}
     .form-grid{grid-template-columns:1fr;}
     .dash-recent-grid{grid-template-columns:1fr;}
-    header{padding:10px 12px;row-gap:8px;}
+    header{padding:12px 14px;row-gap:8px;}
     header .header-brand{width:100%;}
-    header .header-logo{height:38px;}
-    header h1{font-size:16px;}
+    header .header-logo{height:44px;}
+    header h1{font-size:18px;}
     header nav{width:100%;order:2;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 -12px;padding:0 12px;}
     header nav::-webkit-scrollbar{display:none;}
-    header nav button{flex:none;white-space:nowrap;padding:8px 12px;font-size:13.5px;}
+    header nav button{flex:none;white-space:nowrap;padding:9px 14px;font-size:15px;}
     header .spacer{display:none;}
     header #headerUserPill{order:3;}
     header #entidadeGlobalFilter{order:4;margin-left:auto;}
@@ -615,6 +617,7 @@ function whoPillClass(name){
 }
 let state = { suppliers: [], invoices: [], clients: [], issuedInvoices: [], historico: [], entidades: SEED_DATA.entidades, tipos: SEED_DATA.tipos, statuses: SEED_DATA.statuses, statusesEmitidas: ["Pendente","Paga","Vencida"] };
 let siteId = null, fornecedoresListId = null, faturasListId = null, clientesListId = null, faturasEmitidasListId = null, historicoListId = null;
+let historicoDebugInfo = null;
 
 /* ====================== UTIL ====================== */
 const fmtCurrency = v => new Intl.NumberFormat('pt-PT', {style:'currency', currency:'EUR'}).format(v||0);
@@ -1358,6 +1361,17 @@ async function startApp(){
         em: item.createdDateTime || null
       };
     });
+    // Info de diagnóstico (mostrada na aba "Conta") para conseguirmos confirmar,
+    // sem abrir as Ferramentas de Programador, quantas listas "HistoricoAlteracoes"
+    // foram encontradas e juntas, quantos registos têm no total, e que utilizadores
+    // aparecem lá — útil para perceber se falta gente na Atividade.
+    historicoDebugInfo = {
+      listCount: historicoListIds.length,
+      recordCount: state.historico.length,
+      perList: spHistArrays.map((arr,idx)=>({ listId: historicoListIds[idx], count: arr.length })),
+      users: Array.from(new Set(state.historico.map(h=>h.por).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'pt')),
+      semAutor: state.historico.filter(h=>!h.por || h.por==='—').length
+    };
 
     if(spInvoices.length === 0){
       setAuthGateSpinner(false);
@@ -3162,9 +3176,20 @@ document.getElementById('atividadeTipoFilter').addEventListener('change', render
 
 /* ====================== CONTA / BACKUP ====================== */
 function renderAccountStatus(){
+  let histLine = '';
+  if(historicoDebugInfo){
+    const d = historicoDebugInfo;
+    const listWord = d.listCount===1 ? 'lista' : 'listas';
+    const usersTxt = d.users.length ? d.users.join(', ') : '—';
+    const alerta = d.listCount > 1
+      ? ` ⚠️ Encontradas ${d.listCount} listas "HistoricoAlteracoes" no SharePoint — a app está a juntar os registos de todas, mas o ideal é apagar as extra (ficar só com a mais antiga).`
+      : '';
+    const semAutorTxt = d.semAutor ? ` · ${d.semAutor} sem autor identificado` : '';
+    histLine = `<br><span class="muted">Atividade: ${d.recordCount} registo${d.recordCount===1?'':'s'} em ${d.listCount} ${listWord} "HistoricoAlteracoes"${semAutorTxt} · Utilizadores encontrados: ${escapeHtml(usersTxt)}.${alerta}</span>`;
+  }
   document.getElementById('accountStatus').innerHTML = `
     Sessão iniciada como <strong>${escapeHtml(currentAccount ? (currentAccount.username||currentAccount.name) : '—')}</strong><br>
-    <span class="muted">${state.suppliers.length} fornecedores · ${state.invoices.length} faturas carregadas do SharePoint.</span>
+    <span class="muted">${state.suppliers.length} fornecedores · ${state.invoices.length} faturas carregadas do SharePoint.</span>${histLine}
   `;
 }
 document.getElementById('btnRefreshData').addEventListener('click', async ()=>{
