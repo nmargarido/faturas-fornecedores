@@ -772,9 +772,11 @@ async function graphBatch(requests){
 }
 
 /* ====================== ONEDRIVE ANEXOS ====================== */
-// Os ficheiros ficam arrumados no OneDrive por tipo, ano e entidade:
-//   FaturasApp/Fornecedores/2026/Nome do Fornecedor/FT 123_1789.pdf
-//   FaturasApp/ClientesEmitidas/2026/Nome do Cliente/FA 456_1789.pdf
+// Os ficheiros ficam arrumados no OneDrive por tipo, ano e entidade, e o nome
+// de cada um leva a referencia escrita por quem o anexou, para se perceber o
+// que e cada documento sem ter de o abrir:
+//   FaturasApp/Fornecedores/2026/Nome do Fornecedor/FT 123 - Fatura original_m1x9.pdf
+//   FaturasApp/Fornecedores/2026/Nome do Fornecedor/FT 123 - Comprovativo MB_m1xa.pdf
 // O OneDrive cria sozinho as pastas que faltarem ao receber o ficheiro, por
 // isso nao e preciso cria-las antes.
 function pastaSegura(nome, max){
@@ -784,6 +786,19 @@ function pastaSegura(nome, max){
     .trim();
   return limpo.slice(0, max || 40).replace(/^[.\s]+/,'').replace(/[.\s]+$/,'') || 'Sem nome';
 }
+
+// Limpa um texto para entrar num nome de ficheiro: tira acentos (mantem o
+// caminho curto) e troca por "_" o que nao seja letra, numero, espaco, ponto
+// ou hifen.
+function nomeFicheiroSeguro(txt, max){
+  return ((txt||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-zA-Z0-9 ._-]+/g,'_')
+    .replace(/\s+/g,' ')
+    .trim())
+    .slice(0, max || 30)
+    .replace(/^[._\s]+/,'').replace(/[._\s]+$/,'');
+}
+let anexoUploadSeq = 0;
 
 function anexoFolderPath(opts){
   opts = opts || {};
@@ -800,14 +815,26 @@ async function uploadFaturaAnexo(file, opts){
   }
   opts = opts || {};
   const token = await getGraphToken();
-  // O link do OneDrive e espelhado na coluna antiga "AnexoUrl" do SharePoint,
-  // que tem um limite de 255 caracteres. Como o nome do fornecedor/cliente ja
-  // esta na pasta, o nome do ficheiro so precisa do numero do documento - o que
-  // encurta bastante o caminho - e mesmo assim limitamo-lo a 30 caracteres.
-  const safeName = ((opts.baseName||'anexo').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-zA-Z0-9 ._-]+/g,'_').trim() || 'anexo').slice(0, 30);
+  // Nome do ficheiro: "<no do documento> - <referencia>_<sufixo>.<ext>".
+  // A referencia e o que distingue varios anexos da mesma fatura; quando nao
+  // ha referencia, usa-se a posicao ((2), (3)...) para nao ficarem todos com o
+  // mesmo nome. Os limites de tamanho existem porque o link acaba espelhado na
+  // coluna antiga "AnexoUrl" do SharePoint, que so aceita 255 caracteres.
+  const partesNome = [];
+  const numDocNome = nomeFicheiroSeguro(opts.baseName, 25);
+  if(numDocNome) partesNome.push(numDocNome);
+  const refNome = nomeFicheiroSeguro(opts.ref, 30);
+  if(refNome) partesNome.push(refNome);
+  else if(opts.indice > 1) partesNome.push('(' + opts.indice + ')');
+  const safeName = partesNome.join(' - ') || 'anexo';
   const extMatch = /\.[a-zA-Z0-9]+$/.exec(file.name||'');
   const ext = extMatch ? extMatch[0] : '';
-  const filename = `${safeName}_${Date.now()}${ext}`;
+  // Sufixo curto em base 36 (8 caracteres, em vez dos 13 do timestamp) so para
+  // garantir que nada e substituido por engano no OneDrive. O contador entra na
+  // conta porque varios anexos da mesma fatura sao enviados no mesmo instante:
+  // sem ele, dois ficheiros com a mesma referencia ficariam com o mesmo nome e
+  // o segundo substituia o primeiro.
+  const filename = `${safeName}_${(Date.now() + (anexoUploadSeq++ % 1000)).toString(36)}${ext}`;
   const relPath = anexoFolderPath(opts).map(seg=>encodeURIComponent(seg)).join('/') + '/' + encodeURIComponent(filename);
   const path = `/users/${encodeURIComponent(ONEDRIVE_OWNER_UPN)}/drive/root:/${relPath}:/content`;
   let res = await fetch(GRAPH_BASE + path, {
@@ -930,8 +957,11 @@ async function uploadPendingAnexos(prefix, opts, onProgress){
     }
     enviados++;
     if(onProgress) onProgress(enviados, totalPorEnviar);
-    const uploaded = await uploadFaturaAnexo(a.file, opts);
-    out.push({ url: uploaded.url, nome: uploaded.nome, ref:(a.ref||'').trim() });
+    // A referência vai também para o nome do ficheiro no OneDrive, e a posição
+    // serve de desempate quando o anexo não tem referência escrita.
+    const ref = (a.ref||'').trim();
+    const uploaded = await uploadFaturaAnexo(a.file, { ...opts, ref, indice: list.indexOf(a) + 1 });
+    out.push({ url: uploaded.url, nome: uploaded.nome, ref });
   }
   return out;
 }
