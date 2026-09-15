@@ -70,6 +70,15 @@
   .badge.overdue{background:var(--red-bg);color:var(--red);}
   .muted{color:var(--muted);}
   .pill{display:inline-block;padding:2px 8px;border-radius:6px;background:var(--gray-bg);font-size:11.5px;font-weight:600;color:var(--text);}
+  .anexos-list{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;}
+  .anexo-row{display:flex;align-items:center;gap:8px;background:var(--gray-bg);border:1px solid var(--border);border-radius:8px;padding:6px 8px;flex-wrap:wrap;}
+  .anexo-file{display:flex;align-items:center;gap:6px;min-width:0;flex:1 1 170px;font-size:13px;}
+  .anexo-file a{text-decoration:none;}
+  .anexo-nome{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  input.anexo-ref{flex:1 1 170px;min-width:120px;font-size:13px;padding:6px 8px;}
+  .anexo-novo{font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap;}
+  .anexos-empty{font-size:12.5px;color:var(--muted);margin-bottom:8px;}
+  .anexo-count{font-size:11px;font-weight:700;color:var(--muted);margin-left:1px;}
   .timeline{max-height:190px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:4px 12px;background:var(--gray-bg);margin-top:6px;}
   .timeline-item{padding:8px 0;border-bottom:1px dashed var(--border);font-size:12.5px;}
   .timeline-item:last-child{border-bottom:none;}
@@ -450,12 +459,9 @@
       <div class="form-row" style="grid-column:1/-1;"><label id="finDataLabel">Data prevista de pagamento</label><input type="date" id="finDataPgto"></div>
       <div class="form-row" style="grid-column:1/-1;"><label>Notas</label><textarea id="finNotas" rows="2"></textarea></div>
       <div class="form-row" style="grid-column:1/-1;">
-        <label>Anexo (PDF, Word, Excel ou imagem, máx. 4MB)</label>
-        <div id="finAnexoAtual" style="display:none;margin-bottom:6px;font-size:13px;">
-          <a href="#" id="finAnexoAtualLink" target="_blank" rel="noopener">📎 Ver anexo atual</a>
-          <button type="button" class="btn small secondary" id="finAnexoRemoverBtn" style="margin-left:8px;">Remover</button>
-        </div>
-        <input type="file" id="finAnexoFile" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx">
+        <label>Anexos (PDF, Word, Excel ou imagem, máx. 4MB cada)</label>
+        <div id="finAnexosList" class="anexos-list"></div>
+        <input type="file" id="finAnexoFile" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx">
       </div>
       <div class="form-row" style="grid-column:1/-1;display:none;" id="finTimelineWrap">
         <details class="timeline-details">
@@ -543,12 +549,9 @@
       <div class="form-row" style="grid-column:1/-1;"><label id="feinDataLabel">Data de pagamento</label><input type="date" id="feinDataPgto"></div>
       <div class="form-row" style="grid-column:1/-1;"><label>Notas</label><textarea id="feinNotas" rows="2"></textarea></div>
       <div class="form-row" style="grid-column:1/-1;">
-        <label>Anexo (PDF, Word, Excel ou imagem, máx. 4MB)</label>
-        <div id="feinAnexoAtual" style="display:none;margin-bottom:6px;font-size:13px;">
-          <a href="#" id="feinAnexoAtualLink" target="_blank" rel="noopener">📎 Ver anexo atual</a>
-          <button type="button" class="btn small secondary" id="feinAnexoRemoverBtn" style="margin-left:8px;">Remover</button>
-        </div>
-        <input type="file" id="feinAnexoFile" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx">
+        <label>Anexos (PDF, Word, Excel ou imagem, máx. 4MB cada)</label>
+        <div id="feinAnexosList" class="anexos-list"></div>
+        <input type="file" id="feinAnexoFile" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx">
       </div>
       <div class="form-row" style="grid-column:1/-1;display:none;" id="feinTimelineWrap">
         <details class="timeline-details">
@@ -769,21 +772,44 @@ async function graphBatch(requests){
 }
 
 /* ====================== ONEDRIVE ANEXOS ====================== */
-async function uploadFaturaAnexo(file, subfolder, baseName){
+// Os ficheiros ficam arrumados no OneDrive por tipo, ano e entidade:
+//   FaturasApp/Fornecedores/2026/Nome do Fornecedor/FT 123_1789.pdf
+//   FaturasApp/ClientesEmitidas/2026/Nome do Cliente/FA 456_1789.pdf
+// O OneDrive cria sozinho as pastas que faltarem ao receber o ficheiro, por
+// isso nao e preciso cria-las antes.
+function pastaSegura(nome, max){
+  const limpo = (nome||'')
+    .replace(/[\\/:*?"<>|#%]+/g, '-')   // caracteres proibidos em nomes do OneDrive
+    .replace(/\s+/g, ' ')
+    .trim();
+  return limpo.slice(0, max || 40).replace(/^[.\s]+/,'').replace(/[.\s]+$/,'') || 'Sem nome';
+}
+
+function anexoFolderPath(opts){
+  opts = opts || {};
+  const partes = [ONEDRIVE_ROOT_FOLDER, opts.subfolder || 'Outros'];
+  if(opts.ano) partes.push(pastaSegura(String(opts.ano), 4));
+  if(opts.entidade) partes.push(pastaSegura(opts.entidade, 40));
+  return partes;
+}
+
+async function uploadFaturaAnexo(file, opts){
   if(!file) return null;
   if(file.size > ONEDRIVE_MAX_SIZE){
-    throw new Error('Ficheiro demasiado grande (máx. 4MB).');
+    throw new Error('Ficheiro demasiado grande (max. 4MB).');
   }
+  opts = opts || {};
   const token = await getGraphToken();
-  // O link do OneDrive (AnexoUrl) \u00e9 gravado numa coluna de texto do SharePoint,
-  // que tem um limite de 255 caracteres. Limitamos o nome do ficheiro a 40
-  // caracteres \u2014 suficiente para o identificar \u2014 para nunca contribuirmos
-  // desnecessariamente para esse limite, seja qual for o tipo de ficheiro.
-  const safeName = ((baseName||'anexo').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9 ._-]+/g,'_').trim() || 'anexo').slice(0, 40);
+  // O link do OneDrive e espelhado na coluna antiga "AnexoUrl" do SharePoint,
+  // que tem um limite de 255 caracteres. Como o nome do fornecedor/cliente ja
+  // esta na pasta, o nome do ficheiro so precisa do numero do documento - o que
+  // encurta bastante o caminho - e mesmo assim limitamo-lo a 30 caracteres.
+  const safeName = ((opts.baseName||'anexo').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-zA-Z0-9 ._-]+/g,'_').trim() || 'anexo').slice(0, 30);
   const extMatch = /\.[a-zA-Z0-9]+$/.exec(file.name||'');
   const ext = extMatch ? extMatch[0] : '';
   const filename = `${safeName}_${Date.now()}${ext}`;
-  const path = `/users/${encodeURIComponent(ONEDRIVE_OWNER_UPN)}/drive/root:/${ONEDRIVE_ROOT_FOLDER}/${subfolder}/${encodeURIComponent(filename)}:/content`;
+  const relPath = anexoFolderPath(opts).map(seg=>encodeURIComponent(seg)).join('/') + '/' + encodeURIComponent(filename);
+  const path = `/users/${encodeURIComponent(ONEDRIVE_OWNER_UPN)}/drive/root:/${relPath}:/content`;
   let res = await fetch(GRAPH_BASE + path, {
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': file.type || 'application/octet-stream' },
@@ -818,9 +844,112 @@ async function uploadFaturaAnexo(file, subfolder, baseName){
   if(url.length > 240){
     const tenant = SITE_HOSTNAME.split('.')[0];
     const upnSlug = ONEDRIVE_OWNER_UPN.replace(/[^a-zA-Z0-9]+/g, '_');
-    url = `https://${tenant}-my.sharepoint.com/personal/${upnSlug}/Documents/${ONEDRIVE_ROOT_FOLDER}/${subfolder}/${encodeURIComponent(filename)}`;
+    url = `https://${tenant}-my.sharepoint.com/personal/${upnSlug}/Documents/${relPath}`;
   }
   return { url, nome: filename };
+}
+
+/* ---- Editor de vários anexos (modais de fatura recebida e emitida) ----
+   Cada modal tem a sua lista de trabalho: os anexos já gravados e os que ainda
+   estão por enviar (com o ficheiro guardado em memória). O envio para o
+   OneDrive só acontece ao Guardar — assim, fechar o modal sem gravar não deixa
+   ficheiros perdidos lá. Cada anexo leva uma referência em texto livre, escrita
+   por quem o carrega. */
+const anexosDraft = { fin: [], fein: [] };
+
+function anexosDraftSnapshot(prefix){
+  return (anexosDraft[prefix]||[]).map(a=>`${a.url||a.nome}::${a.ref||''}`).join('|');
+}
+
+function renderAnexosEditor(prefix){
+  const cont = document.getElementById(prefix+'AnexosList');
+  if(!cont) return;
+  const list = anexosDraft[prefix] || [];
+  if(!list.length){
+    cont.innerHTML = '<div class="anexos-empty">Sem anexos. Escolhe um ou mais ficheiros abaixo.</div>';
+    return;
+  }
+  cont.innerHTML = list.map((a, idx)=>`
+    <div class="anexo-row">
+      <span class="anexo-file">
+        ${a.url ? `<a href="${escapeHtml(a.url)}" target="_blank" rel="noopener" title="Abrir documento">📎</a>` : '<span title="Ainda não enviado">📎</span>'}
+        <span class="anexo-nome" title="${escapeHtml(a.nome||'')}">${escapeHtml(a.nome||'(sem nome)')}</span>
+        ${a.file ? '<span class="anexo-novo">por enviar</span>' : ''}
+      </span>
+      <input type="text" class="anexo-ref" placeholder="Referência (ex: Fatura original)" value="${escapeHtml(a.ref||'')}" oninput="setAnexoRef('${prefix}', ${idx}, this.value)">
+      <button type="button" class="btn small secondary" onclick="removeAnexo('${prefix}', ${idx})" title="Remover este anexo">✕</button>
+    </div>`).join('');
+}
+
+function setAnexoRef(prefix, idx, value){
+  if(anexosDraft[prefix] && anexosDraft[prefix][idx]) anexosDraft[prefix][idx].ref = value;
+}
+
+function removeAnexo(prefix, idx){
+  if(!anexosDraft[prefix]) return;
+  anexosDraft[prefix].splice(idx, 1);
+  renderAnexosEditor(prefix);
+}
+
+// Passa os ficheiros escolhidos no input para a lista de trabalho. É chamado
+// quando se escolhem ficheiros e outra vez ao gravar, para apanhar também os
+// que ainda estejam no input sem terem passado pelo evento de mudança.
+function absorbAnexoFiles(prefix){
+  const input = document.getElementById(prefix+'AnexoFile');
+  if(!input || !input.files || !input.files.length) return;
+  Array.from(input.files).forEach(file=>{
+    if(file.size > ONEDRIVE_MAX_SIZE){
+      showToast(`"${file.name}" tem mais de 4MB e não foi adicionado.`);
+      return;
+    }
+    anexosDraft[prefix].push({ url:'', nome: file.name, ref:'', file });
+  });
+  input.value = '';
+}
+
+function initAnexosDraft(prefix, inv){
+  const base = (inv && Array.isArray(inv.anexos) && inv.anexos.length) ? inv.anexos
+    : ((inv && inv.anexo_url) ? [{ url:inv.anexo_url, nome:inv.anexo_nome||'', ref:'' }] : []);
+  anexosDraft[prefix] = base.map(a=>({ url:a.url||'', nome:a.nome||'', ref:a.ref||'' }));
+  const input = document.getElementById(prefix+'AnexoFile');
+  if(input) input.value = '';
+  renderAnexosEditor(prefix);
+}
+
+// Envia os anexos novos para o OneDrive e devolve a lista final a gravar.
+async function uploadPendingAnexos(prefix, opts, onProgress){
+  absorbAnexoFiles(prefix);
+  const list = anexosDraft[prefix] || [];
+  const totalPorEnviar = list.filter(a=>a.file).length;
+  let enviados = 0;
+  const out = [];
+  for(const a of list){
+    if(!a.file){
+      out.push({ url:a.url, nome:a.nome, ref:(a.ref||'').trim() });
+      continue;
+    }
+    enviados++;
+    if(onProgress) onProgress(enviados, totalPorEnviar);
+    const uploaded = await uploadFaturaAnexo(a.file, opts);
+    out.push({ url: uploaded.url, nome: uploaded.nome, ref:(a.ref||'').trim() });
+  }
+  return out;
+}
+
+// Como os anexos aparecem na coluna de ações das tabelas de faturas: o clipe
+// abre o primeiro documento e, havendo mais, um contador "+N" ao lado; as
+// referências de todos ficam no tooltip. A gestão completa é no modal de editar.
+function anexosCellHtml(i){
+  const list = Array.isArray(i.anexos) && i.anexos.length
+    ? i.anexos
+    : (i.anexo_url ? [{url:i.anexo_url, nome:i.anexo_nome||'', ref:''}] : []);
+  if(!list.length) return '';
+  const label = a => a.ref || a.nome || 'documento';
+  const titulo = list.length === 1
+    ? 'Ver anexo: ' + label(list[0])
+    : list.map((a,idx)=>`${idx+1}. ${label(a)}`).join('\n');
+  return `<a href="${escapeHtml(list[0].url)}" target="_blank" rel="noopener" title="${escapeHtml(titulo)}">📎</a>` +
+    (list.length > 1 ? `<span class="anexo-count" title="${escapeHtml(titulo)}">+${list.length-1}</span>` : '');
 }
 
 
@@ -923,6 +1052,86 @@ async function ensureHistoricoList(){
   return data.id;
 }
 
+/* ---- Vários anexos por fatura ----
+   Antes cada fatura só tinha um anexo, guardado nas colunas AnexoUrl/AnexoNome.
+   Agora tem uma lista de anexos, cada um com a sua referência escrita por quem
+   o carrega. Essa lista vai em JSON para uma coluna de texto multi-linha,
+   "AnexosJson", criada automaticamente na primeira vez que alguém com
+   permissões para alterar a estrutura da lista abre a app.
+   Se a coluna não existir e não for possível criá-la (ex: um utilizador sem
+   permissão para mexer na estrutura da lista), a app continua a funcionar como
+   antes — um anexo por fatura — em vez de rebentar a gravar ou a ler. */
+const ANEXOS_FIELD = 'AnexosJson';
+const anexosColOk = { faturas: false, emitidas: false };
+
+const FATURAS_BASE_FIELDS = 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,Valor,Status,DataPagamento,Notas,AnexoUrl,AnexoNome';
+const EMITIDAS_BASE_FIELDS = 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,DataEmissao,DataVencimento,Valor,Status,DataPagamento,Notas,AnexoUrl,AnexoNome';
+function faturasFields(){ return FATURAS_BASE_FIELDS + (anexosColOk.faturas ? ','+ANEXOS_FIELD : ''); }
+function emitidasFields(){ return EMITIDAS_BASE_FIELDS + (anexosColOk.emitidas ? ','+ANEXOS_FIELD : ''); }
+
+async function ensureAnexosColumn(listId, key){
+  if(!listId) return false;
+  try{
+    const data = await graphFetch(`/sites/${siteId}/lists/${listId}/columns?$select=name`);
+    const exists = (data.value||[]).some(c => (c.name||'').trim().toLowerCase() === ANEXOS_FIELD.toLowerCase());
+    if(exists){ anexosColOk[key] = true; return true; }
+  }catch(e){
+    console.warn('Não foi possível verificar as colunas da lista — a usar o modo de um anexo por fatura.', e);
+    anexosColOk[key] = false;
+    return false;
+  }
+  try{
+    await graphFetch(`/sites/${siteId}/lists/${listId}/columns`, {
+      method:'POST',
+      body: JSON.stringify({ name: ANEXOS_FIELD, text: { allowMultipleLines: true } })
+    });
+    anexosColOk[key] = true;
+    return true;
+  }catch(e){
+    console.warn(`Não foi possível criar a coluna "${ANEXOS_FIELD}" — a app fica limitada a um anexo por fatura até que alguém com permissões a crie.`, e);
+    anexosColOk[key] = false;
+    return false;
+  }
+}
+
+// Normaliza o que vem do SharePoint (coluna nova em JSON, ou as colunas antigas
+// de um só anexo) para uma lista [{url, nome, ref}].
+function parseAnexos(fields){
+  const raw = fields[ANEXOS_FIELD];
+  if(raw){
+    try{
+      const arr = JSON.parse(raw);
+      if(Array.isArray(arr)){
+        return arr.filter(a=>a && a.url).map(a=>({ url: String(a.url||''), nome: String(a.nome||''), ref: String(a.ref||'') }));
+      }
+    }catch(e){ console.warn('AnexosJson inválido numa fatura — a usar o anexo antigo.', e); }
+  }
+  if(fields.AnexoUrl) return [{ url: fields.AnexoUrl, nome: fields.AnexoNome||'', ref: '' }];
+  return [];
+}
+
+// Grava a lista de anexos: o JSON na coluna nova (quando existe) e sempre o
+// primeiro anexo nas colunas antigas, para que nada do que já lá está deixe de
+// funcionar (tabelas, exportações e faturas criadas por versões anteriores).
+function anexosToSpFields(anexos, key){
+  const list = Array.isArray(anexos) ? anexos.filter(a=>a && a.url) : [];
+  let primeiroUrl = list.length ? list[0].url : '';
+  // Rede de segurança: a coluna antiga "AnexoUrl" é texto de uma linha (limite
+  // de 255 caracteres) e um link acima disso faria a gravação da fatura falhar
+  // toda. Havendo a coluna nova, onde o link fica guardado na íntegra, é
+  // preferível deixar a antiga vazia do que perder a gravação.
+  if(primeiroUrl.length > 255 && anexosColOk[key]){
+    console.warn('Link do anexo demasiado comprido para a coluna antiga AnexoUrl — guardado apenas em ' + ANEXOS_FIELD + '.');
+    primeiroUrl = '';
+  }
+  const out = {
+    AnexoUrl: primeiroUrl,
+    AnexoNome: list.length ? list[0].nome : ''
+  };
+  if(anexosColOk[key]) out[ANEXOS_FIELD] = list.length ? JSON.stringify(list) : '';
+  return out;
+}
+
 function displayNameFromGraphUser(obj){
   return (obj && obj.user && obj.user.displayName) || '—';
 }
@@ -971,7 +1180,16 @@ function diffCampos(oldD, newD, defs){
   return linhas;
 }
 
+// Resumo dos anexos para o histórico: mostra a referência de cada um (ou o nome
+// do ficheiro, quando não tem referência), para se perceber na Atividade o que
+// foi acrescentado ou retirado.
+function anexosHistLabel(v){
+  if(!Array.isArray(v) || !v.length) return '—';
+  return v.map(a=>a.ref || a.nome || 'documento').join(', ');
+}
+
 const FATURA_HIST_FIELDS = [
+  ['anexos','Anexos', anexosHistLabel],
   ['fornecedor_nome','Fornecedor'],
   ['entidade','Empresa'],
   ['tipo','Tipo'],
@@ -983,6 +1201,7 @@ const FATURA_HIST_FIELDS = [
   ['notas','Notas', v => v || '—'],
 ];
 const FATURA_EMITIDA_HIST_FIELDS = [
+  ['anexos','Anexos', anexosHistLabel],
   ['cliente_nome','Cliente'],
   ['entidade','Empresa'],
   ['tipo','Tipo'],
@@ -1054,6 +1273,7 @@ function mapSpToInvoice(item){
     status: f.Status || 'A confirmar',
     data_pgto: f.DataPagamento ? f.DataPagamento.slice(0,10) : null,
     notas: f.Notas || '',
+    anexos: parseAnexos(f),
     anexo_url: f.AnexoUrl || '', anexo_nome: f.AnexoNome || '',
     criado_em: item.createdDateTime || null,
     criado_por: (item.createdBy && item.createdBy.user && item.createdBy.user.displayName) || '',
@@ -1067,7 +1287,8 @@ function invoiceToSpFields(i){
     FornecedorNome: i.fornecedor_nome||'', FornecedorNIPC: i.fornecedor_nipc||'',
     FornecedorLegacyId: i.fornecedor_id||'', Entidade: i.entidade||'', Tipo: i.tipo||'',
     NumeroDoc: i.numero_doc||'', Valor: i.valor||0, Status: i.status||'',
-    Notas: i.notas||'', AnexoUrl: i.anexo_url||'', AnexoNome: i.anexo_nome||''
+    Notas: i.notas||'',
+    ...anexosToSpFields(i.anexos !== undefined ? i.anexos : (i.anexo_url ? [{url:i.anexo_url, nome:i.anexo_nome||'', ref:''}] : []), 'faturas')
   };
   if(i.mes_factura) out.MesFactura = new Date(i.mes_factura+'T00:00:00Z').toISOString();
   if(i.data_pgto) out.DataPagamento = new Date(i.data_pgto+'T00:00:00Z').toISOString();
@@ -1107,6 +1328,7 @@ function mapSpToFaturaEmitida(item){
     status: f.Status || 'Pendente',
     data_pgto: f.DataPagamento ? f.DataPagamento.slice(0,10) : null,
     notas: f.Notas || '',
+    anexos: parseAnexos(f),
     anexo_url: f.AnexoUrl || '', anexo_nome: f.AnexoNome || '',
     criado_em: item.createdDateTime || null,
     criado_por: (item.createdBy && item.createdBy.user && item.createdBy.user.displayName) || '',
@@ -1120,7 +1342,8 @@ function faturaEmitidaToSpFields(i){
     FornecedorNome: i.cliente_nome||'', FornecedorNIPC: i.cliente_nipc||'',
     FornecedorLegacyId: i.cliente_id||'', Entidade: i.entidade||'', Tipo: i.tipo||'',
     NumeroDoc: i.numero_doc||'', Valor: i.valor||0, Status: i.status||'',
-    Notas: i.notas||'', AnexoUrl: i.anexo_url||'', AnexoNome: i.anexo_nome||''
+    Notas: i.notas||'',
+    ...anexosToSpFields(i.anexos !== undefined ? i.anexos : (i.anexo_url ? [{url:i.anexo_url, nome:i.anexo_nome||'', ref:''}] : []), 'emitidas')
   };
   if(i.mes_factura) out.MesFactura = new Date(i.mes_factura+'T00:00:00Z').toISOString();
   if(i.data_emissao) out.DataEmissao = new Date(i.data_emissao+'T00:00:00Z').toISOString();
@@ -1275,7 +1498,7 @@ async function resumeBulkImport(){
     setAuthGateSpinner(false);
     showToast(`${missing.length} faturas importadas`);
 
-    const spInv2 = await fetchAllListItems(faturasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,Valor,Status,DataPagamento,Notas,AnexoUrl,AnexoNome');
+    const spInv2 = await fetchAllListItems(faturasListId, faturasFields());
     mapInvoicesWithFornecedorIds(spInv2);
     populateAnoFilter();
     renderDashboard(); renderFaturasTab(); renderAccountStatus();
@@ -1341,6 +1564,13 @@ async function startApp(){
       return;
     }
 
+    // Confirmar (ou criar) a coluna dos anexos múltiplos antes de ler os dados:
+    // o que pedimos ao SharePoint depende de ela já existir ou não.
+    await Promise.all([
+      ensureAnexosColumn(faturasListId, 'faturas'),
+      ensureAnexosColumn(faturasEmitidasListId, 'emitidas')
+    ]);
+
     // Vão-se buscar TODAS as listas ao mesmo tempo (em vez de uma a seguir à
     // outra) — isto é o que mais pesa no arranque, porque a lista de Faturas
     // tem milhares de registos e demora várias dezenas de pedidos paginados;
@@ -1354,8 +1584,8 @@ async function startApp(){
     const [spFornecedores, spClientes, spFaturasEmitidas, spInvoices, ...spHistArrays] = await Promise.all([
       trackLoad(fornecedoresListId ? fetchAllListItems(fornecedoresListId, 'LegacyId,Title,field_1,field_2,field_3,field_4,field_5,field_6,field_7,field_8,field_9,field_10,field_11,field_12,field_13') : Promise.resolve([])),
       trackLoad(clientesListId ? fetchAllListItems(clientesListId, 'LegacyId,Title,field_1,field_2,field_3,field_4,field_5,field_6,field_7,field_8,field_9,field_10,field_11,field_12,field_13') : Promise.resolve([])),
-      trackLoad(faturasEmitidasListId ? fetchAllListItems(faturasEmitidasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,DataEmissao,DataVencimento,Valor,Status,DataPagamento,Notas,AnexoUrl,AnexoNome') : Promise.resolve([])),
-      fetchAllListItems(faturasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,Valor,Status,DataPagamento,Notas,AnexoUrl,AnexoNome'),
+      trackLoad(faturasEmitidasListId ? fetchAllListItems(faturasEmitidasListId, emitidasFields()) : Promise.resolve([])),
+      fetchAllListItems(faturasListId, faturasFields()),
       ...historicoListIds.map(lid => trackLoad(fetchAllListItems(lid, 'FaturaSpId,TipoFatura,Referencia,Resumo')))
     ]);
 
@@ -1428,7 +1658,7 @@ function mapIssuedInvoicesWithClienteIds(spItems){
 async function finishStartup(){
   // reload invoices fresh (covers the just-imported case) with fornecedor_id resolved
   if(!state.invoices.length){
-    const spInvoices = await fetchAllListItems(faturasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,Valor,Status,DataPagamento,Notas,AnexoUrl,AnexoNome');
+    const spInvoices = await fetchAllListItems(faturasListId, faturasFields());
     mapInvoicesWithFornecedorIds(spInvoices);
   }
   document.getElementById('authGate').style.display = 'none';
@@ -1466,27 +1696,28 @@ const FEIN_FORM_FIELDS = ['feinClienteSearch','feinClienteId','feinEntidade','fe
 let finFormOpenSnapshot = '';
 let feinFormOpenSnapshot = '';
 
-function formSnapshot(fieldIds, fileInputId){
+function formSnapshot(fieldIds, fileInputId, anexosPrefix){
   const parts = fieldIds.map(id => document.getElementById(id).value);
   if(fileInputId){
     const fi = document.getElementById(fileInputId);
     const f = fi.files && fi.files[0];
     parts.push(f ? `${f.name}:${f.size}` : '');
-    parts.push(fi.dataset.remover || '');
   }
+  // Os anexos (e as suas referências) também contam como trabalho por guardar.
+  if(anexosPrefix) parts.push(anexosDraftSnapshot(anexosPrefix));
   return parts.join('|');
 }
 
-function confirmDiscardIfChanged(fieldIds, fileInputId, openSnapshot){
-  if(formSnapshot(fieldIds, fileInputId) === openSnapshot) return true;
+function confirmDiscardIfChanged(fieldIds, fileInputId, openSnapshot, anexosPrefix){
+  if(formSnapshot(fieldIds, fileInputId, anexosPrefix) === openSnapshot) return true;
   return confirm('Tens alterações por guardar nesta fatura.\n\nSe fechares agora, vais perdê-las. Fechar mesmo assim?');
 }
 
 function tryCloseFaturaModal(){
-  if(confirmDiscardIfChanged(FIN_FORM_FIELDS, 'finAnexoFile', finFormOpenSnapshot)) closeModal('modalFatura');
+  if(confirmDiscardIfChanged(FIN_FORM_FIELDS, 'finAnexoFile', finFormOpenSnapshot, 'fin')) closeModal('modalFatura');
 }
 function tryCloseFaturaEmitidaModal(){
-  if(confirmDiscardIfChanged(FEIN_FORM_FIELDS, 'feinAnexoFile', feinFormOpenSnapshot)) closeModal('modalFaturaEmitida');
+  if(confirmDiscardIfChanged(FEIN_FORM_FIELDS, 'feinAnexoFile', feinFormOpenSnapshot, 'fein')) closeModal('modalFaturaEmitida');
 }
 
 document.querySelectorAll('.modal-overlay').forEach(ov=>{
@@ -1647,7 +1878,7 @@ function faturaRowHtmlWithNipc(i, s){
     <td data-label="Nº Doc">${escapeHtml(i.numero_doc||'—')}</td>
     <td class="num" data-label="Valor">${fmtCurrency(i.valor)}</td>
     <td style="white-space:nowrap;" class="mob-actions">
-      ${i.anexo_url? `<a href="${escapeHtml(i.anexo_url)}" target="_blank" rel="noopener" title="Ver anexo">📎</a>` : ''}
+      ${anexosCellHtml(i)}
       ${i.status!=='Paga' ? `<button class="btn small secondary" onclick="quickMarkPaid('${i.id}')">Marcar paga</button>` : ''}
       <button class="btn small secondary" onclick="editFatura('${i.id}')">Editar</button>
     </td>
@@ -2086,7 +2317,7 @@ function faturaEmitidaRowHtmlWithNipc(i, s){
     <td data-label="Nº Doc">${escapeHtml(i.numero_doc||'—')}</td>
     <td class="num" data-label="Valor">${fmtCurrency(i.valor)}</td>
     <td style="white-space:nowrap;" class="mob-actions">
-      ${i.anexo_url? `<a href="${escapeHtml(i.anexo_url)}" target="_blank" rel="noopener" title="Ver anexo">📎</a>` : ''}
+      ${anexosCellHtml(i)}
       ${i.status!=='Paga' ? `<button class="btn small secondary" onclick="quickMarkPaidEmitida('${i.id}')">Marcar paga</button>` : ''}
       <button class="btn small secondary" onclick="editFaturaEmitida('${i.id}')">Editar</button>
     </td>
@@ -2485,7 +2716,7 @@ function faturaRowHtml(i){
     <td data-label="Estado">${statusBadge(i.status)}</td>
     <td data-label="Data pgto / prevista">${isOverdue? '<span class="badge overdue">'+fmtDate(i.data_pgto)+'</span>' : fmtDate(i.data_pgto)}</td>
     <td style="white-space:nowrap;" class="mob-actions">
-      ${i.anexo_url? `<a href="${escapeHtml(i.anexo_url)}" target="_blank" rel="noopener" title="Ver anexo">📎</a>` : ''}
+      ${anexosCellHtml(i)}
       ${i.status!=='Paga' ? `<button class="btn small secondary" onclick="quickMarkPaid('${i.id}')">Marcar paga</button>` : ''}
       <button class="btn small secondary" onclick="editFatura('${i.id}')">Editar</button>
     </td>
@@ -2607,22 +2838,13 @@ function openFaturaModal(invId, presetFornecedorId){
   document.getElementById('finStatus').value = inv? inv.status : 'Pendente';
   document.getElementById('finDataPgto').value = inv? (inv.data_pgto||'') : '';
   document.getElementById('finNotas').value = inv? (inv.notas||'') : '';
-  document.getElementById('finAnexoFile').value = '';
-  document.getElementById('finAnexoFile').dataset.remover = '';
-  const finAnexoUrl = inv? (inv.anexo_url||'') : '';
-  document.getElementById('finAnexoAtual').style.display = finAnexoUrl ? 'block' : 'none';
-  document.getElementById('finAnexoAtualLink').href = finAnexoUrl || '#';
+  initAnexosDraft('fin', inv);
   document.getElementById('btnDeleteFatura').style.display = inv ? 'inline-block' : 'none';
   updateFinDataLabel();
   renderTimelineInto('finTimeline','finTimelineWrap','Recebida', inv? inv.spId : null);
-  finFormOpenSnapshot = formSnapshot(FIN_FORM_FIELDS, 'finAnexoFile');
+  finFormOpenSnapshot = formSnapshot(FIN_FORM_FIELDS, 'finAnexoFile', 'fin');
   openModal('modalFatura');
 }
-document.getElementById('finAnexoRemoverBtn').addEventListener('click', ()=>{
-  document.getElementById('finAnexoFile').dataset.remover = '1';
-  document.getElementById('finAnexoAtual').style.display = 'none';
-  showToast('Anexo será removido ao guardar');
-});
 function editFatura(id){ openFaturaModal(id, null); }
 
 function updateFinDataLabel(){
@@ -2687,19 +2909,19 @@ document.getElementById('btnSaveFatura').addEventListener('click', async ()=>{
     }
 
     const mes = document.getElementById('finMesFactura').value;
-    const existingInvForAnexo = document.getElementById('finId').value ? state.invoices.find(i=>i.id===document.getElementById('finId').value) : null;
-    let anexoUrl = existingInvForAnexo ? (existingInvForAnexo.anexo_url||'') : '';
-    let anexoNome = existingInvForAnexo ? (existingInvForAnexo.anexo_nome||'') : '';
-    if(document.getElementById('finAnexoFile').dataset.remover === '1'){
-      anexoUrl = ''; anexoNome = '';
-    }
-    const anexoFileInput = document.getElementById('finAnexoFile');
-    if(anexoFileInput.files && anexoFileInput.files[0]){
-      btn.textContent = 'A enviar anexo...';
-      const uploaded = await uploadFaturaAnexo(anexoFileInput.files[0], 'Fornecedores', finalNome + '_' + (document.getElementById('finNumeroDoc').value.trim()||'fatura'));
-      anexoUrl = uploaded.url; anexoNome = uploaded.nome;
-      btn.textContent = 'A guardar...';
-    }
+    const anexosFinais = await uploadPendingAnexos(
+      'fin',
+      {
+        subfolder: 'Fornecedores',
+        ano: (mes || todayISO()).slice(0,4),
+        entidade: finalNome,
+        baseName: document.getElementById('finNumeroDoc').value.trim() || 'fatura'
+      },
+      (n, total)=>{ btn.textContent = total>1 ? `A enviar anexo ${n}/${total}...` : 'A enviar anexo...'; }
+    );
+    btn.textContent = 'A guardar...';
+    const anexoUrl = anexosFinais.length ? anexosFinais[0].url : '';
+    const anexoNome = anexosFinais.length ? anexosFinais[0].nome : '';
 
     const data = {
       fornecedor_id: finalFornecedorId, fornecedor_nome: finalNome, fornecedor_nipc: finalNipc,
@@ -2711,6 +2933,7 @@ document.getElementById('btnSaveFatura').addEventListener('click', async ()=>{
       status: document.getElementById('finStatus').value,
       data_pgto: document.getElementById('finDataPgto').value || null,
       notas: document.getElementById('finNotas').value.trim(),
+      anexos: anexosFinais,
       anexo_url: anexoUrl, anexo_nome: anexoNome,
     };
 
@@ -2913,7 +3136,7 @@ function faturaEmitidaRowHtml(i){
     <td data-label="Estado">${statusBadge(i.status)}</td>
     <td data-label="Data vencimento">${isOverdue? '<span class="badge overdue">'+fmtDate(i.data_vencimento)+'</span>' : fmtDate(i.data_vencimento)}<br>${diasParaVencerLabel(i)}</td>
     <td style="white-space:nowrap;" class="mob-actions">
-      ${i.anexo_url? `<a href="${escapeHtml(i.anexo_url)}" target="_blank" rel="noopener" title="Ver anexo">📎</a>` : ''}
+      ${anexosCellHtml(i)}
       ${i.status!=='Paga' ? `<button class="btn small secondary" onclick="quickMarkPaidEmitida('${i.id}')">Marcar paga</button>` : ''}
       <button class="btn small secondary" onclick="editFaturaEmitida('${i.id}')">Editar</button>
     </td>
@@ -2970,21 +3193,19 @@ function openFaturaEmitidaModal(invId, presetClienteId){
   document.getElementById('feinStatus').value = inv? inv.status : 'Pendente';
   document.getElementById('feinDataPgto').value = inv? (inv.data_pgto||'') : '';
   document.getElementById('feinNotas').value = inv? (inv.notas||'') : '';
-  document.getElementById('feinAnexoFile').value = '';
-  document.getElementById('feinAnexoFile').dataset.remover = '';
-  const feinAnexoUrl = inv? (inv.anexo_url||'') : '';
-  document.getElementById('feinAnexoAtual').style.display = feinAnexoUrl ? 'block' : 'none';
-  document.getElementById('feinAnexoAtualLink').href = feinAnexoUrl || '#';
+  initAnexosDraft('fein', inv);
   document.getElementById('btnDeleteFaturaEmitida').style.display = inv ? 'inline-block' : 'none';
   updateFeinDataLabel();
   renderTimelineInto('feinTimeline','feinTimelineWrap','Emitida', inv? inv.spId : null);
-  feinFormOpenSnapshot = formSnapshot(FEIN_FORM_FIELDS, 'feinAnexoFile');
+  feinFormOpenSnapshot = formSnapshot(FEIN_FORM_FIELDS, 'feinAnexoFile', 'fein');
   openModal('modalFaturaEmitida');
 }
-document.getElementById('feinAnexoRemoverBtn').addEventListener('click', ()=>{
-  document.getElementById('feinAnexoFile').dataset.remover = '1';
-  document.getElementById('feinAnexoAtual').style.display = 'none';
-  showToast('Anexo será removido ao guardar');
+
+// Ficheiros escolhidos entram logo na lista de trabalho do respetivo modal,
+// para se poder escrever a referência de cada um antes de gravar.
+['fin','fein'].forEach(prefix=>{
+  const input = document.getElementById(prefix+'AnexoFile');
+  if(input) input.addEventListener('change', ()=>{ absorbAnexoFiles(prefix); renderAnexosEditor(prefix); });
 });
 function editFaturaEmitida(id){ openFaturaEmitidaModal(id, null); }
 
@@ -3050,19 +3271,19 @@ document.getElementById('btnSaveFaturaEmitida').addEventListener('click', async 
     }
 
     const mes = document.getElementById('feinMesFactura').value;
-    const existingFeinForAnexo = document.getElementById('feinId').value ? state.issuedInvoices.find(i=>i.id===document.getElementById('feinId').value) : null;
-    let anexoUrlFe = existingFeinForAnexo ? (existingFeinForAnexo.anexo_url||'') : '';
-    let anexoNomeFe = existingFeinForAnexo ? (existingFeinForAnexo.anexo_nome||'') : '';
-    if(document.getElementById('feinAnexoFile').dataset.remover === '1'){
-      anexoUrlFe = ''; anexoNomeFe = '';
-    }
-    const feinAnexoFileInput = document.getElementById('feinAnexoFile');
-    if(feinAnexoFileInput.files && feinAnexoFileInput.files[0]){
-      btn.textContent = 'A enviar anexo...';
-      const uploadedFe = await uploadFaturaAnexo(feinAnexoFileInput.files[0], 'ClientesEmitidas', finalNome + '_' + (document.getElementById('feinNumeroDoc').value.trim()||'fatura'));
-      anexoUrlFe = uploadedFe.url; anexoNomeFe = uploadedFe.nome;
-      btn.textContent = 'A guardar...';
-    }
+    const anexosFinaisFe = await uploadPendingAnexos(
+      'fein',
+      {
+        subfolder: 'ClientesEmitidas',
+        ano: (mes || document.getElementById('feinDataEmissao').value || todayISO()).slice(0,4),
+        entidade: finalNome,
+        baseName: document.getElementById('feinNumeroDoc').value.trim() || 'fatura'
+      },
+      (n, total)=>{ btn.textContent = total>1 ? `A enviar anexo ${n}/${total}...` : 'A enviar anexo...'; }
+    );
+    btn.textContent = 'A guardar...';
+    const anexoUrlFe = anexosFinaisFe.length ? anexosFinaisFe[0].url : '';
+    const anexoNomeFe = anexosFinaisFe.length ? anexosFinaisFe[0].nome : '';
 
     const data = {
       cliente_id: finalClienteId, cliente_nome: finalNome, cliente_nipc: finalNipc,
@@ -3076,6 +3297,7 @@ document.getElementById('btnSaveFaturaEmitida').addEventListener('click', async 
       status: document.getElementById('feinStatus').value,
       data_pgto: document.getElementById('feinDataPgto').value || null,
       notas: document.getElementById('feinNotas').value.trim(),
+      anexos: anexosFinaisFe,
       anexo_url: anexoUrlFe, anexo_nome: anexoNomeFe,
     };
 
@@ -3206,7 +3428,7 @@ document.getElementById('btnRefreshData').addEventListener('click', async ()=>{
   try{
     const spSup = await fetchAllListItems(fornecedoresListId, 'LegacyId,Title,field_1,field_2,field_3,field_4,field_5,field_6,field_7,field_8,field_9,field_10,field_11,field_12,field_13');
     state.suppliers = spSup.map(mapSpToSupplier);
-    const spInv = await fetchAllListItems(faturasListId, 'FornecedorNome,FornecedorNIPC,FornecedorLegacyId,Entidade,Tipo,NumeroDoc,MesFactura,Valor,Status,DataPagamento,Notas,AnexoUrl,AnexoNome');
+    const spInv = await fetchAllListItems(faturasListId, faturasFields());
     mapInvoicesWithFornecedorIds(spInv);
     populateAnoFilter();
     renderDashboard(); renderFornecedoresGrid(); renderFaturasTab(); renderAccountStatus();
