@@ -114,6 +114,8 @@
   .stat .value.amber{color:var(--amber);}
   .stat .value.green{color:var(--green);}
   .stat .value.red{color:var(--red);}
+  .stat .value-sec{font-size:15px;font-weight:700;color:var(--text);margin-top:6px;padding-top:6px;border-top:1px solid var(--border);}
+  .stat .value-sec span{font-size:11.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-right:4px;}
   .pagination{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px;font-size:13px;color:var(--muted);}
   .pagination button{background:var(--gray-bg);border:none;padding:6px 10px;border-radius:6px;cursor:pointer;}
   .pagination button:disabled{opacity:.4;cursor:default;}
@@ -3123,6 +3125,36 @@ function renderFeFilters(){
   document.getElementById('feMesMselWrap').innerHTML = mselHtml('feMes', MESES_OPTS, 'Todos os meses');
 }
 
+/* ---- IVA nas faturas emitidas ----
+   O campo "Valor" de cada fatura é gravado COM IVA incluído. Para mostrar o
+   total sem IVA tira-se o IVA por baixo (valor / 1.23), exceto nas faturas
+   isentas, onde o valor já é o mesmo nas duas colunas.
+   Isentas: tudo o que é emitido pela Crescerá, mais os clientes listados
+   abaixo. A comparação é feita sem acentos e sem maiúsculas, e basta o nome do
+   cliente conter o texto (ex: "emma" apanha "Emma Sleep"). Para acrescentar ou
+   tirar um cliente isento, basta mexer nesta lista. */
+const IVA_TAXA = 0.23;
+const ENTIDADES_SEM_IVA = ['crescera'];
+const CLIENTES_SEM_IVA = ['almacenes', 'emma', 'companeo'];
+
+function semAcentosMinusculas(t){
+  return (t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+}
+
+function faturaEmitidaIsentaIva(i){
+  const entidade = semAcentosMinusculas(i.entidade);
+  if(ENTIDADES_SEM_IVA.some(e => entidade.includes(e))) return true;
+  const cliente = semAcentosMinusculas(i.cliente_nome);
+  return CLIENTES_SEM_IVA.some(c => cliente.includes(c));
+}
+
+// Valor da fatura sem IVA: nas isentas é o próprio valor; nas restantes
+// retira-se o IVA que está incluído no valor gravado.
+function valorSemIva(i){
+  const v = i.valor || 0;
+  return faturaEmitidaIsentaIva(i) ? v : v / (1 + IVA_TAXA);
+}
+
 function renderFaturasEmitidasDashStats(){
   const ent = currentEntidadeFilter();
   const statusF = document.getElementById('feStatusFilter').value;
@@ -3142,15 +3174,30 @@ function renderFaturasEmitidasDashStats(){
   const pagas = invs.filter(i=>i.status==='Paga');
   const totalRecebido = pagas.reduce((a,i)=>a+i.valor,0);
   const totalEmitido = invs.reduce((a,i)=>a+i.valor,0);
+  const totalEmitidoSemIva = invs.reduce((a,i)=>a+valorSemIva(i),0);
+  const nIsentas = invs.filter(faturaEmitidaIsentaIva).length;
 
   const stats = [
     {label:"Total a receber", value: fmtCurrency(totalPendente), cls:"amber", n: pendente.length},
     {label:"Vencidas (em atraso)", value: fmtCurrency(totalOverdue), cls: overdue.length? "red":"green", n: overdue.length},
     {label:"Total recebido", value: fmtCurrency(totalRecebido), cls:"green", n: pagas.length},
-    {label:"Total emitido", value: fmtCurrency(totalEmitido), cls:"", n: invs.length},
+    {
+      label:"Total emitido",
+      value: fmtCurrency(totalEmitidoSemIva),
+      cls:"",
+      n: invs.length,
+      sub: 's/ IVA',
+      extra: `<div class="value-sec"><span>c/ IVA</span>${fmtCurrency(totalEmitido)}</div>`,
+      nota: nIsentas ? `${nIsentas} isenta${nIsentas===1?'':'s'} de IVA` : ''
+    },
   ];
   document.getElementById('feDashStats').innerHTML = stats.map(s=>`
-    <div class="stat"><div class="label">${s.label}</div><div class="value ${s.cls}">${s.value}</div><div class="muted" style="font-size:12px;margin-top:2px;">${s.n} fatura${s.n===1?'':'s'}</div></div>
+    <div class="stat">
+      <div class="label">${s.label}</div>
+      <div class="value ${s.cls}">${s.value}</div>
+      <div class="muted" style="font-size:12px;margin-top:2px;">${s.sub? s.sub+' · ' : ''}${s.n} fatura${s.n===1?'':'s'}${s.nota? ' · '+s.nota : ''}</div>
+      ${s.extra||''}
+    </div>
   `).join('');
 }
 
