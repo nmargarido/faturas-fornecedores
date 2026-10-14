@@ -114,6 +114,20 @@
   .stat .value.amber{color:var(--amber);}
   .stat .value.green{color:var(--green);}
   .stat .value.red{color:var(--red);}
+  .callout{background:#fff8e6;border:1px solid #f2d98a;border-left:4px solid var(--gold);border-radius:8px;padding:10px 14px;font-size:13px;color:#6b5412;margin-bottom:14px;}
+  table.pnl{width:100%;border-collapse:collapse;font-size:13px;}
+  table.pnl th, table.pnl td{padding:8px 10px;white-space:nowrap;}
+  table.pnl thead th{text-align:right;color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid var(--border);}
+  table.pnl thead th:first-child{text-align:left;}
+  table.pnl td{text-align:right;font-variant-numeric:tabular-nums;border-bottom:1px solid #edeff2;}
+  table.pnl td:first-child, table.pnl th:first-child{text-align:left;position:sticky;left:0;background:var(--card);z-index:1;font-weight:600;}
+  table.pnl td.tot, table.pnl th.tot{background:var(--gray-bg);font-weight:700;}
+  table.pnl tr.linha-custo td{color:var(--red);}
+  table.pnl tr.linha-resultado td{border-top:2px solid var(--navy);border-bottom:none;font-weight:700;font-size:14.5px;padding-top:10px;}
+  table.pnl tr.linha-resultado td.pos{color:var(--green);}
+  table.pnl tr.linha-resultado td.neg{color:var(--red);}
+  table.pnl tr.linha-margem td{color:var(--muted);font-size:12px;border-bottom:none;padding-top:0;}
+  .iva-row input.iva-valor{width:120px;text-align:right;font-variant-numeric:tabular-nums;}
   .stat .value-sec{font-size:15px;font-weight:700;color:var(--text);margin-top:6px;padding-top:6px;border-top:1px solid var(--border);}
   .stat .value-sec span{font-size:11.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-right:4px;}
   .pagination{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px;font-size:13px;color:var(--muted);}
@@ -214,6 +228,7 @@
     <button data-view="faturas">Faturas Recebidas</button>
     <button data-view="clientes">Clientes</button>
     <button data-view="faturasEmitidas">Faturas Emitidas</button>
+    <button data-view="pnl">P&amp;L</button>
     <button data-view="atividade">Atividade</button>
     <button data-view="backup">Conta</button>
   </nav>
@@ -362,6 +377,48 @@
   </div>
 
   <!-- ATIVIDADE -->
+  <div class="view" id="view-pnl">
+    <div class="card">
+      <h2>Conta de exploração</h2>
+      <div class="sub">Proveitos faturados a clientes menos faturas de fornecedores, mês a mês.</div>
+      <div class="callout">
+        <strong>Isto é uma conta de gestão, não a demonstração de resultados oficial.</strong>
+        Só entra aqui o que passa por esta aplicação — salários, segurança social, amortizações, impostos e custos financeiros não passam, por isso estes números não batem certo com os do contabilista.
+        Os valores das faturas são os brutos, com IVA; como o IVA entregue ao Estado é descontado na linha própria, o <strong>resultado</strong> fica correto na mesma, mas as linhas de proveitos e de custos ficam acima do real.
+      </div>
+      <div class="toolbar">
+        <select id="pnlAnoFilter"></select>
+        <select id="pnlOtica">
+          <option value="acrescimo">Pelo mês da fatura</option>
+          <option value="caixa">Pela data de pagamento</option>
+        </select>
+        <span class="muted" id="pnlEntidadeLabel" style="font-size:12.5px;"></span>
+      </div>
+      <div class="table-scroll"><table class="pnl" id="pnlTable">
+        <thead id="pnlHead"></thead>
+        <tbody id="pnlBody"></tbody>
+      </table></div>
+      <div class="muted" id="pnlNotas" style="font-size:12.5px;margin-top:10px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>IVA entregue ao Estado</h2>
+      <div class="sub">Lançado por empresa e por período, porque cada empresa tem o seu apuramento. Usa o período a que o IVA <em>respeita</em>, não o mês em que o pagaste. Valores negativos para os períodos em que ficaste com crédito de IVA.</div>
+      <div class="toolbar">
+        <select id="ivaEntidade"></select>
+        <select id="ivaAno"></select>
+        <select id="ivaPeriodo"></select>
+        <input type="number" step="0.01" id="ivaValor" placeholder="Valor (EUR)" style="max-width:160px;">
+        <button class="btn small" id="btnAddIva">Adicionar</button>
+      </div>
+      <div class="table-scroll"><table class="table-responsive">
+        <thead><tr><th>Empresa</th><th>Período</th><th class="num">Valor</th><th></th></tr></thead>
+        <tbody id="ivaBody"></tbody>
+      </table></div>
+      <div class="empty" id="ivaEmpty" style="display:none;">Ainda não há lançamentos de IVA. Sem eles, o resultado fica inflacionado pelo IVA que recebeste dos clientes.</div>
+    </div>
+  </div>
+
   <div class="view" id="view-atividade">
     <div class="card">
       <h2>Atividade</h2>
@@ -602,6 +659,7 @@ const FATURAS_LIST_NAME = "Faturas";
 const CLIENTES_LIST_NAME = "Clientes";
 const FATURAS_EMITIDAS_LIST_NAME = "FaturasEmitidas";
 const HISTORICO_LIST_NAME = "HistoricoAlteracoes";
+const IVA_LIST_NAME = "ApuramentoIVA";
 const ONEDRIVE_OWNER_UPN = "nuno.margarido@ventask.pt";
 const ONEDRIVE_ROOT_FOLDER = "FaturasApp";
 const ONEDRIVE_MAX_SIZE = 4 * 1024 * 1024; // 4MB (upload simples)
@@ -620,8 +678,8 @@ function whoPillClass(name){
   if(n === FLAGGED_USER_NAME) return 'flagged';
   return '';
 }
-let state = { suppliers: [], invoices: [], clients: [], issuedInvoices: [], historico: [], entidades: SEED_DATA.entidades, tipos: SEED_DATA.tipos, statuses: SEED_DATA.statuses, statusesEmitidas: ["Pendente","Paga","Vencida"] };
-let siteId = null, fornecedoresListId = null, faturasListId = null, clientesListId = null, faturasEmitidasListId = null, historicoListId = null;
+let state = { suppliers: [], invoices: [], clients: [], issuedInvoices: [], historico: [], ivaEntries: [], entidades: SEED_DATA.entidades, tipos: SEED_DATA.tipos, statuses: SEED_DATA.statuses, statusesEmitidas: ["Pendente","Paga","Vencida"] };
+let siteId = null, fornecedoresListId = null, faturasListId = null, clientesListId = null, faturasEmitidasListId = null, historicoListId = null, ivaListId = null;
 let historicoDebugInfo = null;
 
 /* ====================== UTIL ====================== */
@@ -1082,6 +1140,33 @@ async function ensureHistoricoList(){
   const data = await graphFetch(`/sites/${siteId}/lists`, { method:"POST", body: JSON.stringify(body) });
   localStorage.setItem('sp_list_id_' + HISTORICO_LIST_NAME, data.id);
   return data.id;
+}
+
+async function ensureIvaList(){
+  const body = {
+    displayName: IVA_LIST_NAME,
+    list: { template: "genericList" },
+    columns: [
+      { name:"Entidade", text:{} },
+      { name:"Periodo", text:{} },
+      { name:"Valor", number:{ decimalPlaces:"two" } },
+      { name:"Notas", text:{ allowMultipleLines:true } }
+    ]
+  };
+  const data = await graphFetch(`/sites/${siteId}/lists`, { method:"POST", body: JSON.stringify(body) });
+  localStorage.setItem('sp_list_id_' + IVA_LIST_NAME, data.id);
+  return data.id;
+}
+
+function mapSpToIva(item){
+  const f = item.fields || {};
+  return {
+    id: 'sp-' + item.id, spId: item.id,
+    entidade: f.Entidade || '',
+    periodo: f.Periodo || '',
+    valor: typeof f.Valor === 'number' ? f.Valor : parseFloat(f.Valor||0) || 0,
+    notas: f.Notas || ''
+  };
 }
 
 /* ---- Vários anexos por fatura ----
@@ -1585,6 +1670,24 @@ async function startApp(){
       }
     }catch(e){ console.error('Erro a resolver lista de histórico', e); }
 
+    // Lista do IVA entregue ao Estado (usada na aba P&L). Mesma precaução das
+    // listas de histórico: se por acaso existirem duas com o mesmo nome,
+    // escrevemos sempre na mais antiga mas lemos as duas, para não desaparecerem
+    // lançamentos de ninguém.
+    let ivaListIds = [];
+    try{
+      ivaListIds = await getAllListIds(IVA_LIST_NAME);
+      if(!ivaListIds.length){
+        const criada = await ensureIvaList();
+        ivaListIds = criada ? [criada] : [];
+      }
+      ivaListIds = ivaListIds.slice().sort();
+      ivaListId = ivaListIds[0] || null;
+      if(ivaListIds.length > 1){
+        console.warn(`Atenção: encontradas ${ivaListIds.length} listas "${IVA_LIST_NAME}" no SharePoint — a juntar os lançamentos de todas.`);
+      }
+    }catch(e){ console.error('Erro a resolver a lista de IVA — a aba P&L fica sem a linha do IVA.', e); }
+
     if(!faturasListId){
       setAuthGateSpinner(false);
       setAuthGateMsg('Ainda não existe a lista "Faturas" no SharePoint. Vamos criá-la e carregar os dados iniciais (12 093 faturas) — só é preciso fazer isto uma vez.');
@@ -1610,16 +1713,21 @@ async function startApp(){
     // lista mais lenta, em vez da soma de todas.
     setAuthGateMsg('A carregar dados do SharePoint...');
     let loadedCount = 0;
-    const totalToLoad = 3 + historicoListIds.length;
+    const totalToLoad = 3 + historicoListIds.length + ivaListIds.length;
     const trackLoad = p => p.then(r => { loadedCount++; setAuthGateMsg(`A carregar dados do SharePoint... (${loadedCount}/${totalToLoad})`); return r; });
 
-    const [spFornecedores, spClientes, spFaturasEmitidas, spInvoices, ...spHistArrays] = await Promise.all([
+    const nHist = historicoListIds.length;
+    const [spFornecedores, spClientes, spFaturasEmitidas, spInvoices, ...spExtras] = await Promise.all([
       trackLoad(fornecedoresListId ? fetchAllListItems(fornecedoresListId, 'LegacyId,Title,field_1,field_2,field_3,field_4,field_5,field_6,field_7,field_8,field_9,field_10,field_11,field_12,field_13') : Promise.resolve([])),
       trackLoad(clientesListId ? fetchAllListItems(clientesListId, 'LegacyId,Title,field_1,field_2,field_3,field_4,field_5,field_6,field_7,field_8,field_9,field_10,field_11,field_12,field_13') : Promise.resolve([])),
       trackLoad(faturasEmitidasListId ? fetchAllListItems(faturasEmitidasListId, emitidasFields()) : Promise.resolve([])),
       fetchAllListItems(faturasListId, faturasFields()),
-      ...historicoListIds.map(lid => trackLoad(fetchAllListItems(lid, 'FaturaSpId,TipoFatura,Referencia,Resumo')))
+      ...historicoListIds.map(lid => trackLoad(fetchAllListItems(lid, 'FaturaSpId,TipoFatura,Referencia,Resumo'))),
+      ...ivaListIds.map(lid => trackLoad(fetchAllListItems(lid, 'Entidade,Periodo,Valor,Notas')))
     ]);
+    const spHistArrays = spExtras.slice(0, nHist);
+    const spIvaArrays = spExtras.slice(nHist);
+    state.ivaEntries = spIvaArrays.flat().map(mapSpToIva);
 
     state.suppliers = spFornecedores.map(mapSpToSupplier);
     state.clients = spClientes.map(mapSpToClient);
@@ -1708,6 +1816,7 @@ function switchView(name){
   if(name==='faturas') renderFaturasTab();
   if(name==='clientes') { showClienteList(); renderClientesGrid(); }
   if(name==='faturasEmitidas') renderFaturasEmitidasTab();
+  if(name==='pnl') renderPnl();
   if(name==='atividade') renderAtividade();
   if(name==='backup') renderAccountStatus();
 }
@@ -3482,6 +3591,278 @@ document.getElementById('atividadeSearch').addEventListener('input', renderAtivi
 document.getElementById('atividadeUserFilter').addEventListener('change', renderAtividade);
 document.getElementById('atividadeTipoFilter').addEventListener('change', renderAtividade);
 
+/* ====================== P&L (CONTA DE EXPLORAÇÃO) ======================
+   Os valores das faturas estão gravados com IVA incluído dos dois lados. Em
+   vez de tentar adivinhar a taxa de IVA de cada fatura de fornecedor, o IVA
+   realmente entregue ao Estado é lançado à mão (por empresa e por período) e
+   descontado numa linha própria. O IVA cobrado aos clientes e o suportado nas
+   compras anulam-se com essa entrega, por isso o RESULTADO fica igual ao que
+   daria se tivéssemos trabalhado com valores líquidos desde o início — só as
+   linhas de proveitos e de custos é que ficam brutas. */
+
+const PNL_MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+// Faturas de fornecedores nestes estados ficam de fora: ainda podem ser
+// contestadas ou nem sequer estão confirmadas, e entrariam a inflacionar custos.
+const PNL_ESTADOS_EXCLUIDOS = ['A confirmar', 'Disputa'];
+
+// Notas de crédito contam sempre a subtrair, quer estejam gravadas com valor
+// positivo (distinguidas pelo tipo), quer já com o valor negativo.
+function valorComSinal(i){
+  if(semAcentosMinusculas(i.tipo).includes('credito')) return -Math.abs(i.valor||0);
+  return i.valor || 0;
+}
+
+// Mês (0-11) em que a fatura entra na conta, conforme a ótica escolhida.
+function pnlMes(i, otica, ano){
+  const data = otica === 'caixa' ? i.data_pgto : i.mes_factura;
+  if(!data) return -1;
+  if(String(data).slice(0,4) !== String(ano)) return -1;
+  const m = parseInt(String(data).slice(5,7), 10);
+  return (m >= 1 && m <= 12) ? m - 1 : -1;
+}
+
+// Um lançamento de IVA mensal vai inteiro para o seu mês; um trimestral é
+// repartido em partes iguais pelos três meses do trimestre.
+function ivaMesesDoPeriodo(periodo){
+  const p = String(periodo||'').trim();
+  let m = /^(\d{4})-(\d{2})$/.exec(p);
+  if(m) return { ano: m[1], meses: [parseInt(m[2],10)-1], fracao: 1 };
+  m = /^(\d{4})-T([1-4])$/i.exec(p);
+  if(m){
+    const base = (parseInt(m[2],10)-1)*3;
+    return { ano: m[1], meses: [base, base+1, base+2], fracao: 1/3 };
+  }
+  return null;
+}
+
+function computePnl(ano, otica, entidade){
+  const proveitos = new Array(12).fill(0);
+  const custos = new Array(12).fill(0);
+  const iva = new Array(12).fill(0);
+  let excluidasN = 0, excluidasV = 0;
+
+  state.issuedInvoices.forEach(i=>{
+    if(entidade && i.entidade !== entidade) return;
+    if(otica === 'caixa' && i.status !== 'Paga') return;
+    const m = pnlMes(i, otica, ano);
+    if(m < 0) return;
+    proveitos[m] += valorComSinal(i);
+  });
+
+  state.invoices.forEach(i=>{
+    if(entidade && i.entidade !== entidade) return;
+    if(PNL_ESTADOS_EXCLUIDOS.includes(i.status)){
+      if(pnlMes(i, 'acrescimo', ano) >= 0){ excluidasN++; excluidasV += Math.abs(valorComSinal(i)); }
+      return;
+    }
+    if(otica === 'caixa' && i.status !== 'Paga') return;
+    const m = pnlMes(i, otica, ano);
+    if(m < 0) return;
+    custos[m] += valorComSinal(i);
+  });
+
+  (state.ivaEntries||[]).forEach(e=>{
+    if(entidade && e.entidade !== entidade) return;
+    const info = ivaMesesDoPeriodo(e.periodo);
+    if(!info || info.ano !== String(ano)) return;
+    info.meses.forEach(m=>{ iva[m] += (e.valor||0) * info.fracao; });
+  });
+
+  const resultado = proveitos.map((p, idx)=> p - custos[idx] - iva[idx]);
+  const temIva = iva.some(v=>v !== 0);
+  return { proveitos, custos, iva, resultado, excluidasN, excluidasV, temIva };
+}
+
+function pnlAnosDisponiveis(){
+  const anos = new Set();
+  state.invoices.forEach(i=>{ const a=(i.mes_factura||'').slice(0,4); if(a) anos.add(a); });
+  state.issuedInvoices.forEach(i=>{ const a=(i.mes_factura||'').slice(0,4); if(a) anos.add(a); });
+  (state.ivaEntries||[]).forEach(e=>{ const info=ivaMesesDoPeriodo(e.periodo); if(info) anos.add(info.ano); });
+  anos.add(String(new Date().getFullYear()));
+  return Array.from(anos).sort().reverse();
+}
+
+function populatePnlFilters(){
+  const anos = pnlAnosDisponiveis();
+  const sel = document.getElementById('pnlAnoFilter');
+  const anterior = sel.value;
+  sel.innerHTML = anos.map(a=>`<option value="${a}">${a}</option>`).join('');
+  if(anterior && anos.includes(anterior)) sel.value = anterior;
+
+  const entSel = document.getElementById('ivaEntidade');
+  const entAnterior = entSel.value;
+  entSel.innerHTML = SEED_DATA.entidades.map(e=>`<option value="${escapeHtml(e)}">${escapeHtml(e)}</option>`).join('');
+  if(entAnterior) entSel.value = entAnterior;
+
+  const anoSel = document.getElementById('ivaAno');
+  const anoAnterior = anoSel.value;
+  anoSel.innerHTML = anos.map(a=>`<option value="${a}">${a}</option>`).join('');
+  if(anoAnterior && anos.includes(anoAnterior)) anoSel.value = anoAnterior;
+
+  const perSel = document.getElementById('ivaPeriodo');
+  if(!perSel.options.length){
+    perSel.innerHTML = MESES_OPTS.map(o=>`<option value="${o.value}">${o.label}</option>`).join('')
+      + [1,2,3,4].map(t=>`<option value="T${t}">${t}º trimestre</option>`).join('');
+  }
+}
+
+function renderPnl(){
+  if(!document.getElementById('pnlBody')) return;
+  populatePnlFilters();
+  const ano = document.getElementById('pnlAnoFilter').value || String(new Date().getFullYear());
+  const otica = document.getElementById('pnlOtica').value;
+  const entidade = currentEntidadeFilter();
+  const d = computePnl(ano, otica, entidade);
+
+  document.getElementById('pnlEntidadeLabel').textContent = entidade
+    ? `Empresa: ${entidade}`
+    : 'Todas as empresas somadas — a Ventask, a Crescerá e a Mind & Sparkle são entidades distintas, por isso o total só vale como visão tua.';
+
+  document.getElementById('pnlHead').innerHTML =
+    `<tr><th>Rubrica</th>${PNL_MESES.map(m=>`<th>${m}</th>`).join('')}<th class="tot">Total</th></tr>`;
+
+  const soma = arr => arr.reduce((a,b)=>a+b,0);
+  const cel = v => Math.abs(v) < 0.005 ? '—' : fmtCurrency(v);
+  const custosNeg = d.custos.map(v=>-v);
+  const ivaNeg = d.iva.map(v=>-v);
+
+  const linha = (label, valores, cls, titulo) => {
+    const t = soma(valores);
+    return `<tr class="${cls||''}"${titulo? ` title="${escapeHtml(titulo)}"`:''}>` +
+      `<td>${label}</td>${valores.map(v=>`<td>${cel(v)}</td>`).join('')}<td class="tot">${cel(t)}</td></tr>`;
+  };
+
+  const linhaResultado = () => {
+    const t = soma(d.resultado);
+    const c = v => `<td class="${v>0.005?'pos':(v<-0.005?'neg':'')}">${cel(v)}</td>`;
+    return `<tr class="linha-resultado"><td>Resultado</td>${d.resultado.map(c).join('')}` +
+      `<td class="tot ${t>0.005?'pos':(t<-0.005?'neg':'')}">${cel(t)}</td></tr>`;
+  };
+
+  const totalProveitos = soma(d.proveitos);
+  const margem = d.resultado.map((r, idx)=> d.proveitos[idx] ? (r / d.proveitos[idx] * 100) : null);
+  const margemTotal = totalProveitos ? (soma(d.resultado) / totalProveitos * 100) : null;
+  const pct = v => (v===null || !isFinite(v)) ? '—' : v.toFixed(1).replace('.', ',') + '%';
+  const linhaMargem = `<tr class="linha-margem" title="Calculada sobre proveitos brutos (com IVA), por isso fica abaixo da margem real.">` +
+    `<td>Margem s/ proveitos brutos</td>${margem.map(v=>`<td>${pct(v)}</td>`).join('')}<td class="tot">${pct(margemTotal)}</td></tr>`;
+
+  document.getElementById('pnlBody').innerHTML = [
+    linha('Proveitos (faturas a clientes)', d.proveitos),
+    linha('Custos (faturas de fornecedores)', custosNeg, 'linha-custo'),
+    linha('IVA entregue ao Estado', ivaNeg, 'linha-custo', 'Lançado por ti na tabela abaixo. Um trimestre é repartido pelos seus três meses.'),
+    linhaResultado(),
+    linhaMargem
+  ].join('');
+
+  const notas = [];
+  if(!d.temIva){
+    notas.push(`<strong>Não há IVA lançado para ${ano}${entidade? ' na '+escapeHtml(entidade):''}.</strong> Sem isso o resultado está inflacionado pelo IVA que cobraste aos clientes — lança-o na tabela abaixo.`);
+  }
+  if(d.excluidasN){
+    notas.push(`${d.excluidasN} fatura${d.excluidasN===1?'':'s'} de fornecedor em "A confirmar" ou "Disputa" ficaram de fora, no valor de ${fmtCurrency(d.excluidasV)}.`);
+  }
+  if(otica === 'caixa'){
+    notas.push('Na ótica de caixa só entram faturas já pagas, colocadas no mês do pagamento.');
+  }
+  document.getElementById('pnlNotas').innerHTML = notas.join('<br>');
+
+  renderIvaTable();
+}
+
+function periodoLabel(periodo){
+  const p = String(periodo||'');
+  let m = /^(\d{4})-(\d{2})$/.exec(p);
+  if(m){ const o = MESES_OPTS.find(x=>x.value===m[2]); return `${o?o.label:m[2]} de ${m[1]}`; }
+  m = /^(\d{4})-T([1-4])$/i.exec(p);
+  if(m) return `${m[2]}º trimestre de ${m[1]}`;
+  return p || '—';
+}
+
+function renderIvaTable(){
+  if(!document.getElementById('ivaBody')) return;
+  const lista = (state.ivaEntries||[]).slice().sort((a,b)=>
+    (b.periodo||'').localeCompare(a.periodo||'') || (a.entidade||'').localeCompare(b.entidade||''));
+  document.getElementById('ivaEmpty').style.display = lista.length ? 'none' : 'block';
+  document.getElementById('ivaBody').innerHTML = lista.map(e=>`
+    <tr class="iva-row">
+      <td data-label="Empresa"><span class="pill">${escapeHtml(e.entidade||'—')}</span></td>
+      <td data-label="Período">${escapeHtml(periodoLabel(e.periodo))}</td>
+      <td class="num" data-label="Valor"><input type="number" step="0.01" class="iva-valor" value="${e.valor}" onchange="guardarIvaValor('${e.id}', this.value)"></td>
+      <td style="white-space:nowrap;" class="mob-actions"><button class="btn small secondary" onclick="apagarIva('${e.id}')">Apagar</button></td>
+    </tr>`).join('');
+}
+
+async function adicionarIva(){
+  const btn = document.getElementById('btnAddIva');
+  const entidade = document.getElementById('ivaEntidade').value;
+  const ano = document.getElementById('ivaAno').value;
+  const periodo = `${ano}-${document.getElementById('ivaPeriodo').value}`;
+  const valorTxt = document.getElementById('ivaValor').value;
+  if(valorTxt === '' || isNaN(parseFloat(valorTxt))){ showToast('Indica o valor do IVA.'); return; }
+  if((state.ivaEntries||[]).some(e=>e.entidade===entidade && e.periodo===periodo)){
+    showToast('Já existe um lançamento para esta empresa e período — altera o valor na tabela.');
+    return;
+  }
+  if(!ivaListId){ showToast('A lista de IVA não está disponível no SharePoint.'); return; }
+  btn.disabled = true; btn.textContent = 'A gravar...';
+  try{
+    const valor = Math.round(parseFloat(valorTxt)*100)/100;
+    const created = await graphFetch(`/sites/${siteId}/lists/${ivaListId}/items`, {
+      method:'POST',
+      body: JSON.stringify({ fields: { Title: `${entidade} ${periodo}`, Entidade: entidade, Periodo: periodo, Valor: valor, Notas: '' } })
+    });
+    state.ivaEntries.push({ id:'sp-'+created.id, spId: created.id, entidade, periodo, valor, notas:'' });
+    document.getElementById('ivaValor').value = '';
+    renderPnl();
+    showToast('IVA lançado');
+  }catch(e){
+    console.error(e);
+    showToast('Erro a gravar o IVA: ' + e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = 'Adicionar';
+  }
+}
+
+async function guardarIvaValor(id, valorTxt){
+  const e = (state.ivaEntries||[]).find(x=>x.id===id);
+  if(!e) return;
+  const novo = parseFloat(valorTxt);
+  if(isNaN(novo)){ showToast('Valor inválido'); renderIvaTable(); return; }
+  const anterior = e.valor;
+  e.valor = Math.round(novo*100)/100;
+  renderPnl();
+  try{
+    await graphFetch(`/sites/${siteId}/lists/${ivaListId}/items/${e.spId}/fields`, {
+      method:'PATCH', body: JSON.stringify({ Valor: e.valor })
+    });
+    showToast('IVA atualizado');
+  }catch(err){
+    console.error(err);
+    e.valor = anterior;
+    renderPnl();
+    showToast('Erro a atualizar o IVA: ' + err.message);
+  }
+}
+
+async function apagarIva(id){
+  const e = (state.ivaEntries||[]).find(x=>x.id===id);
+  if(!e) return;
+  if(!confirm(`Apagar o lançamento de IVA de ${e.entidade} (${periodoLabel(e.periodo)})?`)) return;
+  try{
+    await graphFetch(`/sites/${siteId}/lists/${ivaListId}/items/${e.spId}`, { method:'DELETE' });
+    state.ivaEntries = state.ivaEntries.filter(x=>x.id!==id);
+    renderPnl();
+    showToast('Lançamento apagado');
+  }catch(err){
+    console.error(err);
+    showToast('Erro a apagar: ' + err.message);
+  }
+}
+
+document.getElementById('pnlAnoFilter').addEventListener('change', renderPnl);
+document.getElementById('pnlOtica').addEventListener('change', renderPnl);
+document.getElementById('btnAddIva').addEventListener('click', adicionarIva);
+
 /* ====================== CONTA / BACKUP ====================== */
 function renderAccountStatus(){
   let histLine = '';
@@ -3548,6 +3929,7 @@ function initAfterStateChange(){
   showClienteList();
   renderClientesGrid();
   renderFaturasEmitidasTab();
+  renderPnl();
   renderAtividade();
 }
 
@@ -3555,7 +3937,7 @@ document.querySelectorAll('#mainNav button').forEach(btn=>{
   btn.addEventListener('click', ()=>switchView(btn.dataset.view));
 });
 document.getElementById('entidadeGlobalFilter').addEventListener('change', ()=>{
-  renderDashboard(); renderFaturasTab(); renderFornecedoresGrid();
+  renderDashboard(); renderFaturasTab(); renderFornecedoresGrid(); renderPnl();
 });
 document.getElementById('dashUserFilter').addEventListener('change', renderDashboard);
 document.getElementById('fornecedorSearch').addEventListener('input', ()=>{fornecedoresPage=0; renderFornecedoresGrid();});
