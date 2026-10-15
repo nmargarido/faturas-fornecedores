@@ -660,6 +660,18 @@ const CLIENTES_LIST_NAME = "Clientes";
 const FATURAS_EMITIDAS_LIST_NAME = "FaturasEmitidas";
 const HISTORICO_LIST_NAME = "HistoricoAlteracoes";
 const ONEDRIVE_OWNER_UPN = "nuno.margarido@ventask.pt";
+
+/* Abas reservadas e quem as vê. Para dar acesso a mais alguém, acrescenta o
+   email com que essa pessoa faz login a UTILIZADORES_COMPLETOS; para reservar
+   (ou libertar) uma aba, mexe em ABAS_RESERVADAS. Quem não estiver na lista
+   nem vê os botões dessas abas, e entra na app pela primeira aba a que tem
+   acesso.
+   ATENÇÃO: isto esconde as abas, não as tranca — quem souber usar as
+   ferramentas de programador do browser consegue lá chegar, e os números
+   continuam visíveis nas listas do SharePoint a quem tiver permissão nelas.
+   Para impedir mesmo, é preciso mexer nas permissões das listas. */
+const UTILIZADORES_COMPLETOS = ["nuno.margarido@ventask.pt"];
+const ABAS_RESERVADAS = ["dashboard", "pnl", "atividade"];
 const ONEDRIVE_ROOT_FOLDER = "FaturasApp";
 const ONEDRIVE_MAX_SIZE = 4 * 1024 * 1024; // 4MB (upload simples)
 
@@ -667,6 +679,33 @@ let msalInstance = null;
 let currentAccount = null;
 function currentUserDisplayName(){
   return currentAccount ? (currentAccount.name || currentAccount.username || '—') : '—';
+}
+
+function ehUtilizadorCompleto(){
+  const u = (currentAccount && (currentAccount.username || '') || '').trim().toLowerCase();
+  return !!u && UTILIZADORES_COMPLETOS.some(e => e.trim().toLowerCase() === u);
+}
+
+function podeVerAba(nome){
+  return !ABAS_RESERVADAS.includes(nome) || ehUtilizadorCompleto();
+}
+
+// Primeira aba do menu a que o utilizador tem acesso — é onde ele entra.
+function primeiraAbaPermitida(){
+  const btn = Array.from(document.querySelectorAll('#mainNav button'))
+    .find(b => podeVerAba(b.dataset.view));
+  return btn ? btn.dataset.view : 'backup';
+}
+
+// Esconde (ou mostra) os botões das abas reservadas conforme quem está
+// autenticado, e tira da frente uma aba reservada que tenha ficado aberta.
+function aplicarPermissoesAbas(){
+  document.querySelectorAll('#mainNav button').forEach(b=>{
+    b.style.display = podeVerAba(b.dataset.view) ? '' : 'none';
+  });
+  const aberta = document.querySelector('.view.active');
+  const nomeAberta = aberta ? aberta.id.replace('view-','') : null;
+  if(nomeAberta && !podeVerAba(nomeAberta)) switchView(primeiraAbaPermitida());
 }
 const FLAGGED_USER_NAME = 'keval lakhani';
 function whoPillClass(name){
@@ -1607,6 +1646,7 @@ async function startApp(){
   const pill = document.getElementById('headerUserPill');
   pill.style.display = 'inline-block';
   pill.textContent = currentAccount.username || currentAccount.name || 'Sessão iniciada';
+  aplicarPermissoesAbas();
 
   setAuthGateSpinner(true);
   setAuthGateMsg('A ligar ao SharePoint...');
@@ -1757,6 +1797,7 @@ async function finishStartup(){
 
 /* ====================== NAV ====================== */
 function switchView(name){
+  if(!podeVerAba(name)) name = primeiraAbaPermitida();
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById('view-'+name).classList.add('active');
   document.querySelectorAll('#mainNav button').forEach(b=>b.classList.toggle('active', b.dataset.view===name));
@@ -1837,6 +1878,7 @@ function populateDashUserFilter(){
 }
 
 function renderDashboard(){
+  if(!podeVerAba('dashboard')) return;   // não desenhar: os valores nem chegam ao HTML
   populateDashUserFilter();
   const ent = currentEntidadeFilter();
   const user = currentDashUserFilter();
@@ -3506,6 +3548,7 @@ function populateAtividadeUserFilter(){
 }
 
 function renderAtividade(){
+  if(!podeVerAba('atividade')) return;   // idem
   populateAtividadeUserFilter();
   const q = (document.getElementById('atividadeSearch').value||'').toLowerCase().trim();
   const userF = document.getElementById('atividadeUserFilter').value;
@@ -3624,6 +3667,13 @@ function populatePnlFilters(){
 
 function renderPnl(){
   if(!document.getElementById('pnlBody')) return;
+  if(!podeVerAba('pnl')){
+    // Nem sequer calculamos: assim os valores não ficam no HTML da página.
+    document.getElementById('pnlHead').innerHTML = '';
+    document.getElementById('pnlBody').innerHTML = '';
+    document.getElementById('pnlNotas').innerHTML = '';
+    return;
+  }
   populatePnlFilters();
   const ano = document.getElementById('pnlAnoFilter').value || String(new Date().getFullYear());
   const otica = document.getElementById('pnlOtica').value;
@@ -3717,6 +3767,7 @@ function pnlDetalhe(tipo, mes, ano, otica, entidade){
 }
 
 function abrirPnlDetalhe(tipo, mes){
+  if(!podeVerAba('pnl')) return;
   const ano = document.getElementById('pnlAnoFilter').value;
   const otica = document.getElementById('pnlOtica').value;
   const entidade = currentEntidadeFilter();
